@@ -1,6 +1,10 @@
 const Stripe = require('stripe');
-require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
 
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+const key = process.env.STRIPE_SECRET_KEY;
+if (!key) {
+  console.error('WARNING: STRIPE_SECRET_KEY is not set. API calls will fail.');
+}
+
+const stripe = key ? Stripe(key) : null;
 
 module.exports = stripe;
