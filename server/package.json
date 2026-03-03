@@ -1,0 +1,18 @@
+{
+  "name": "digirise-dashboard-server",
+  "private": true,
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "stripe": "^17.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
+    "node-cache": "^5.1.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

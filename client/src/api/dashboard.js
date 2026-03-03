@@ -1,0 +1,21 @@
+const API_BASE = '/api/dashboard';
+
+async function fetchJSON(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+  return response.json();
+}
+
+export const fetchSummary = (year, month) =>
+  fetchJSON(`${API_BASE}/summary?year=${year}&month=${month}`);
+
+export const fetchMembers = (year, month) =>
+  fetchJSON(`${API_BASE}/members?year=${year}&month=${month}`);
+
+export const fetchPlans = () =>
+  fetchJSON(`${API_BASE}/plans`);
+
+export const refreshCache = () =>
+  fetch(`${API_BASE}/refresh`, { method: 'POST' }).then(r => r.json());
