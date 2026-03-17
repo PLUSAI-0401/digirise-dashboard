@@ -80,6 +80,7 @@ export default function App() {
             <BudgetSection
               budget={budgetData?.budget}
               timeline={budgetData?.timeline}
+              lineMetrics={budgetData?.lineMetrics}
               actualRevenue={summary?.currentMonth?.revenue}
               actualNewMembers={members?.newMembersThisMonth}
               year={year}

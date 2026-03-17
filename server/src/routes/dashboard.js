@@ -5,6 +5,7 @@ const { getMonthlySummary } = require('../services/salesService');
 const { getMemberMetrics } = require('../services/memberService');
 const { getPlanBreakdown } = require('../services/planService');
 const { getBudgetForMonth, getBudgetTimeline } = require('../data/budgetData');
+const { getLineMetrics } = require('../services/lineService');
 
 const cache = new NodeCache({
   stdTTL: parseInt(process.env.CACHE_TTL_SECONDS) || 300,
@@ -59,14 +60,19 @@ router.get('/plans', cacheMiddleware('plans'), async (req, res, next) => {
   }
 });
 
-// Budget data endpoint
-router.get('/budget', (req, res) => {
-  const now = new Date();
-  const year = parseInt(req.query.year) || now.getFullYear();
-  const month = parseInt(req.query.month) || now.getMonth() + 1;
-  const budget = getBudgetForMonth(year, month);
-  const timeline = getBudgetTimeline();
-  res.json({ budget, timeline });
+// Budget data endpoint (includes LINE actual data)
+router.get('/budget', cacheMiddleware('budget'), async (req, res, next) => {
+  try {
+    const now = new Date();
+    const year = parseInt(req.query.year) || now.getFullYear();
+    const month = parseInt(req.query.month) || now.getMonth() + 1;
+    const budget = getBudgetForMonth(year, month);
+    const timeline = getBudgetTimeline();
+    const lineMetrics = await getLineMetrics(year, month);
+    res.json({ budget, timeline, lineMetrics });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Clear cache endpoint (for manual refresh)

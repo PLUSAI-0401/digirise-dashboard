@@ -4,7 +4,7 @@ import FunnelChart from './FunnelChart';
 import BudgetTimelineChart from './BudgetTimelineChart';
 import { TrendingUp, Users, MessageCircle, Target } from 'lucide-react';
 
-export default function BudgetSection({ budget, timeline, actualRevenue, actualNewMembers, year, month }) {
+export default function BudgetSection({ budget, timeline, lineMetrics, actualRevenue, actualNewMembers, year, month }) {
   if (!budget) {
     return (
       <div className="budget-no-data">
@@ -13,6 +13,9 @@ export default function BudgetSection({ budget, timeline, actualRevenue, actualN
       </div>
     );
   }
+
+  const actualLineNew = lineMetrics ? lineMetrics.newFollowers : 0;
+  const hasLineData = lineMetrics !== null && lineMetrics !== undefined;
 
   return (
     <>
@@ -34,11 +37,11 @@ export default function BudgetSection({ budget, timeline, actualRevenue, actualN
           icon={<Users size={20} color="#10B981" />}
         />
         <BudgetKPICard
-          title="LINE登録数"
+          title="LINE新規登録数"
           budget={budget.lineRegistrations}
-          actual={0}
+          actual={actualLineNew}
           unit="number"
-          description="予算のみ表示"
+          description={hasLineData ? 'LINE API連携中' : '予算のみ表示'}
           icon={<MessageCircle size={20} color="#06B6D4" />}
         />
         <BudgetKPICard
@@ -50,6 +53,34 @@ export default function BudgetSection({ budget, timeline, actualRevenue, actualN
           icon={<Target size={20} color="#F59E0B" />}
         />
       </div>
+
+      {/* LINE Follower Summary */}
+      {hasLineData && (
+        <div className="line-summary-card">
+          <div className="line-summary-header">
+            <MessageCircle size={18} color="#06B6D4" />
+            <span className="line-summary-title">LINEフォロワー概況</span>
+          </div>
+          <div className="line-summary-grid">
+            <div className="line-summary-item">
+              <div className="line-summary-label">総フォロワー数</div>
+              <div className="line-summary-value">{lineMetrics.totalFollowers.toLocaleString()}人</div>
+            </div>
+            <div className="line-summary-item">
+              <div className="line-summary-label">有効リーチ</div>
+              <div className="line-summary-value highlight">{lineMetrics.targetedReaches.toLocaleString()}人</div>
+            </div>
+            <div className="line-summary-item">
+              <div className="line-summary-label">ブロック数</div>
+              <div className="line-summary-value muted">{lineMetrics.blocks.toLocaleString()}人</div>
+            </div>
+            <div className="line-summary-item">
+              <div className="line-summary-label">今月の新規登録</div>
+              <div className="line-summary-value accent">{lineMetrics.newFollowers.toLocaleString()}人</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="charts-grid">
         <BudgetTimelineChart timeline={timeline} type="revenue" />
