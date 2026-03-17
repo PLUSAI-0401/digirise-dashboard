@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchSummary, fetchMembers, fetchPlans, refreshCache } from '../api/dashboard';
+import { fetchSummary, fetchMembers, fetchPlans, fetchBudget, refreshCache } from '../api/dashboard';
 
 // Demo data based on actual Stripe data for preview when API is unavailable
 const DEMO_SUMMARY = {
@@ -54,6 +54,7 @@ export function useDashboardData(year, month) {
     summary: null,
     members: null,
     plans: null,
+    budgetData: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -64,18 +65,20 @@ export function useDashboardData(year, month) {
     setError(null);
     setIsDemo(false);
     try {
-      const [summary, members, plans] = await Promise.all([
+      const [summary, members, plans, budgetData] = await Promise.all([
         fetchSummary(year, month),
         fetchMembers(year, month),
         fetchPlans(),
+        fetchBudget(year, month).catch(() => null),
       ]);
-      setData({ summary, members, plans });
+      setData({ summary, members, plans, budgetData });
     } catch (err) {
       // Fallback to demo data when API is unavailable
       setData({
         summary: DEMO_SUMMARY,
         members: DEMO_MEMBERS,
         plans: DEMO_PLANS,
+        budgetData: null,
       });
       setIsDemo(true);
     } finally {

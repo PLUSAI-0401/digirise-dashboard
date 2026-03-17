@@ -7,6 +7,7 @@ import RevenueChart from './components/RevenueChart';
 import MemberChart from './components/MemberChart';
 import PlanPieChart from './components/PlanPieChart';
 import PlanBreakdownTable from './components/PlanBreakdownTable';
+import BudgetSection from './components/BudgetSection';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorMessage from './components/ErrorMessage';
 
@@ -15,7 +16,7 @@ export default function App() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
 
-  const { summary, members, plans, loading, error, refresh, isDemo } = useDashboardData(year, month);
+  const { summary, members, plans, budgetData, loading, error, refresh, isDemo } = useDashboardData(year, month);
 
   return (
     <div>
@@ -70,6 +71,20 @@ export default function App() {
                 totalMonthlyRevenue={plans?.totalMonthlyRevenue}
               />
             </div>
+
+            <div className="budget-divider">
+              <span className="budget-divider-text">予実管理</span>
+            </div>
+
+            <div className="section-title">トップラインKPI（予算 vs 実績）</div>
+            <BudgetSection
+              budget={budgetData?.budget}
+              timeline={budgetData?.timeline}
+              actualRevenue={summary?.currentMonth?.revenue}
+              actualNewMembers={members?.newMembersThisMonth}
+              year={year}
+              month={month}
+            />
           </>
         )}
       </main>

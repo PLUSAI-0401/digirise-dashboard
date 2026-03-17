@@ -338,7 +338,258 @@ body {
   font-weight: 500;
 }
 
+/* ========== Budget / 予実管理 Section ========== */
+
+/* Divider */
+.budget-divider {
+  display: flex;
+  align-items: center;
+  margin: 40px 0 24px;
+  gap: 16px;
+}
+.budget-divider::before,
+.budget-divider::after {
+  content: '';
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-primary-light), transparent);
+}
+.budget-divider-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-primary);
+  white-space: nowrap;
+  letter-spacing: 0.05em;
+}
+
+/* Budget KPI Grid */
+.budget-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.budget-kpi-card {
+  background: var(--color-card);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--color-border);
+  transition: box-shadow 0.2s;
+}
+.budget-kpi-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.budget-kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+.budget-kpi-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.budget-kpi-desc {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+.budget-kpi-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.budget-kpi-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.budget-kpi-ring-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  width: 88px;
+  height: 88px;
+}
+.budget-kpi-ring-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.budget-kpi-pct {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.1;
+}
+.budget-kpi-pct-sub {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.budget-kpi-details {
+  flex: 1;
+  min-width: 0;
+}
+.budget-kpi-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.budget-kpi-row-label {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.budget-kpi-row-value {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.budget-kpi-row-value.budget-kpi-actual {
+  color: var(--color-primary);
+}
+.budget-kpi-row-value.positive {
+  color: var(--color-success);
+}
+.budget-kpi-row-value.negative {
+  color: var(--color-danger);
+}
+
+/* Funnel */
+.budget-funnel-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.funnel-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.funnel-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.funnel-label-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.funnel-step-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.funnel-rate {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  padding: 1px 8px;
+  border-radius: 10px;
+}
+.funnel-bar-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.funnel-bar {
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: width 0.5s ease;
+  min-width: 60px;
+}
+.funnel-bar-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.funnel-arrow {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+  opacity: 0.5;
+}
+
+/* ARPU */
+.arpu-grid {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.arpu-item {
+  flex: 1;
+  min-width: 100px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  text-align: center;
+}
+.arpu-plan-name {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.arpu-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* No data message */
+.budget-no-data {
+  background: var(--color-card);
+  border-radius: var(--radius);
+  padding: 40px 24px;
+  text-align: center;
+  border: 1px solid var(--color-border);
+  margin-bottom: 24px;
+}
+.budget-no-data p {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
 /* Responsive */
+@media (max-width: 1024px) {
+  .budget-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .budget-funnel-wrapper {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .budget-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ========== Original Responsive ========== */
 @media (max-width: 1024px) {
   .kpi-grid {
     grid-template-columns: repeat(2, 1fr);
