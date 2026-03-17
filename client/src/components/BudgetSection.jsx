@@ -14,7 +14,7 @@ export default function BudgetSection({ budget, timeline, lineMetrics, actualRev
     );
   }
 
-  const actualLineNew = lineMetrics ? lineMetrics.newFollowers : 0;
+  const actualLineTotal = lineMetrics ? lineMetrics.totalFollowers : 0;
   const hasLineData = lineMetrics !== null && lineMetrics !== undefined;
 
   return (
@@ -37,9 +37,9 @@ export default function BudgetSection({ budget, timeline, lineMetrics, actualRev
           icon={<Users size={20} color="#10B981" />}
         />
         <BudgetKPICard
-          title="LINE新規登録数"
+          title="LINE登録数"
           budget={budget.lineRegistrations}
-          actual={actualLineNew}
+          actual={actualLineTotal}
           unit="number"
           description={hasLineData ? 'LINE API連携中' : '予算のみ表示'}
           icon={<MessageCircle size={20} color="#06B6D4" />}
