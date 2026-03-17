@@ -31,7 +31,7 @@ function getFollowerInsight(date) {
           if (parsed.status === 'ready') {
             resolve(parsed);
           } else {
-            // Data not ready yet (e.g., today's data)
+            // Data not ready yet
             resolve(null);
           }
         } catch (e) {
@@ -54,9 +54,34 @@ function formatDate(year, month, day) {
 }
 
 /**
+ * Get the latest available follower data.
+ * Try today first, then fall back to yesterday.
+ */
+async function getLatestFollowerData(year, month, day) {
+  // Try today first
+  const todayDate = formatDate(year, month, day);
+  const todayData = await getFollowerInsight(todayDate);
+  if (todayData) {
+    return { data: todayData, date: todayDate };
+  }
+
+  // Fall back to yesterday
+  const yesterday = day - 1;
+  if (yesterday >= 1) {
+    const yesterdayDate = formatDate(year, month, yesterday);
+    const yesterdayData = await getFollowerInsight(yesterdayDate);
+    if (yesterdayData) {
+      return { data: yesterdayData, date: yesterdayDate };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Get LINE metrics for a given month
  * - Total followers at end of month (or latest available date)
- * - New followers added during the month
+ * - New followers added during the month (current month end - first day of month)
  * @param {number} year
  * @param {number} month
  * @returns {Promise<{totalFollowers, newFollowers, targetedReaches, blocks} | null>}
@@ -72,52 +97,35 @@ async function getLineMetrics(year, month) {
     const currentMonth = now.getMonth() + 1;
     const currentDay = now.getDate();
 
-    // Determine the "end" date for the requested month
-    // LINE API data is available up to yesterday
-    let endDate;
+    let endResult;
+
     if (year === currentYear && month === currentMonth) {
-      // Current month: use yesterday's data (today's not available yet)
-      const yesterday = currentDay - 1;
-      if (yesterday < 1) {
-        // First day of month, no data for this month yet
-        endDate = null;
-      } else {
-        endDate = formatDate(year, month, yesterday);
-      }
+      // Current month: try today first, then yesterday
+      endResult = await getLatestFollowerData(year, month, currentDay);
     } else if (year < currentYear || (year === currentYear && month < currentMonth)) {
       // Past month: use last day of that month
       const lastDay = new Date(year, month, 0).getDate();
-      endDate = formatDate(year, month, lastDay);
+      const endDate = formatDate(year, month, lastDay);
+      const endData = await getFollowerInsight(endDate);
+      if (endData) {
+        endResult = { data: endData, date: endDate };
+      }
     } else {
       // Future month: no data
       return null;
     }
 
-    if (!endDate) return null;
+    if (!endResult) return null;
 
-    // Start date: last day of previous month (to get baseline)
-    let startYear = year;
-    let startMonth = month - 1;
-    if (startMonth < 1) {
-      startMonth = 12;
-      startYear = year - 1;
-    }
-    const lastDayPrevMonth = new Date(startYear, startMonth, 0).getDate();
-    const startDate = formatDate(startYear, startMonth, lastDayPrevMonth);
+    // Baseline: first day of the current month (March 1 for March data)
+    const startDate = formatDate(year, month, 1);
+    const startData = await getFollowerInsight(startDate);
 
-    // Fetch both dates in parallel
-    const [endData, startData] = await Promise.all([
-      getFollowerInsight(endDate),
-      getFollowerInsight(startDate),
-    ]);
+    const totalFollowers = endResult.data.followers || 0;
+    const targetedReaches = endResult.data.targetedReaches || 0;
+    const blocks = endResult.data.blocks || 0;
 
-    if (!endData) return null;
-
-    const totalFollowers = endData.followers || 0;
-    const targetedReaches = endData.targetedReaches || 0;
-    const blocks = endData.blocks || 0;
-
-    // Calculate new followers for the month
+    // New followers = latest - first day of month
     const startFollowers = startData ? (startData.followers || 0) : 0;
     const newFollowers = totalFollowers - startFollowers;
 
@@ -126,7 +134,7 @@ async function getLineMetrics(year, month) {
       newFollowers: Math.max(0, newFollowers),
       targetedReaches,
       blocks,
-      dataDate: endDate,
+      dataDate: endResult.date,
     };
   } catch (err) {
     console.error('LINE API error:', err.message);
