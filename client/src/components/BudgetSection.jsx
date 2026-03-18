@@ -6,27 +6,11 @@ import { TrendingUp, Users, MessageCircle, Target } from 'lucide-react';
 import { updateBudgetOverride } from '../api/dashboard';
 
 export default function BudgetSection({ budget, timeline, lineMetrics, actualRevenue, actualNewMembers, year, month, overrides: initialOverrides }) {
-  if (!budget) {
-    return (
-      <div className="budget-no-data">
-        <p>{year}年{month}月の予算データはありません。</p>
-        <p style={{ fontSize: 12, color: '#9CA3AF' }}>予算データは2026年2月～2027年1月の期間が対象です。</p>
-      </div>
-    );
-  }
-
   const [overrides, setOverrides] = useState(initialOverrides || {});
 
   useEffect(() => {
     setOverrides(initialOverrides || {});
   }, [initialOverrides, year, month]);
-
-  const getVal = (key, field, defaultVal) => {
-    if (overrides[key] && overrides[key][field] !== undefined) {
-      return overrides[key][field];
-    }
-    return defaultVal;
-  };
 
   const handleSave = useCallback(async (key, field, value) => {
     setOverrides(prev => ({
@@ -39,6 +23,22 @@ export default function BudgetSection({ budget, timeline, lineMetrics, actualRev
       console.error('Failed to save override:', err);
     }
   }, [year, month]);
+
+  if (!budget) {
+    return (
+      <div className="budget-no-data">
+        <p>{year}年{month}月の予算データはありません。</p>
+        <p style={{ fontSize: 12, color: '#9CA3AF' }}>予算データは2026年2月～2027年1月の期間が対象です。</p>
+      </div>
+    );
+  }
+
+  const getVal = (key, field, defaultVal) => {
+    if (overrides[key] && overrides[key][field] !== undefined) {
+      return overrides[key][field];
+    }
+    return defaultVal;
+  };
 
   const actualLineTotal = lineMetrics ? lineMetrics.totalFollowers : 0;
   const hasLineData = lineMetrics !== null && lineMetrics !== undefined;
