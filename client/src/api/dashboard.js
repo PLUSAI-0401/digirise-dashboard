@@ -22,3 +22,10 @@ export const fetchBudget = (year, month) =>
 
 export const refreshCache = () =>
   fetch(`${API_BASE}/refresh`, { method: 'POST' }).then(r => r.json());
+
+export const updateBudgetOverride = (year, month, key, field, value) =>
+  fetch(`${API_BASE}/budget/override`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ year, month, key, field, value }),
+  }).then(r => r.json());

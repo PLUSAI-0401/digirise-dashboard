@@ -6,6 +6,7 @@ const { getMemberMetrics } = require('../services/memberService');
 const { getPlanBreakdown } = require('../services/planService');
 const { getBudgetForMonth, getBudgetTimeline } = require('../data/budgetData');
 const { getLineMetrics } = require('../services/lineService');
+const { getOverrides, saveOverride } = require('../data/budgetOverrides');
 
 const cache = new NodeCache({
   stdTTL: parseInt(process.env.CACHE_TTL_SECONDS) || 300,
@@ -69,7 +70,29 @@ router.get('/budget', cacheMiddleware('budget'), async (req, res, next) => {
     const budget = getBudgetForMonth(year, month);
     const timeline = getBudgetTimeline();
     const lineMetrics = await getLineMetrics(year, month);
-    res.json({ budget, timeline, lineMetrics });
+    const overrides = getOverrides(year, month);
+    res.json({ budget, timeline, lineMetrics, overrides });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update budget override
+router.put('/budget/override', async (req, res, next) => {
+  try {
+    const { year, month, key, field, value } = req.body;
+    if (!year || !month || !key || !field || value === undefined) {
+      return res.status(400).json({ error: 'year, month, key, field, value are required' });
+    }
+    const validKeys = ['revenue', 'newUsers', 'line', 'cv'];
+    const validFields = ['budget', 'actual'];
+    if (!validKeys.includes(key) || !validFields.includes(field)) {
+      return res.status(400).json({ error: 'Invalid key or field' });
+    }
+    const overrides = saveOverride(year, month, key, field, Number(value));
+    // Clear budget cache so next GET reflects the override
+    cache.del(`budget_${JSON.stringify({ year: String(year), month: String(month) })}`);
+    res.json({ success: true, overrides });
   } catch (err) {
     next(err);
   }

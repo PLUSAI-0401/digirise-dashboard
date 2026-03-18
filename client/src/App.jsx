@@ -81,6 +81,7 @@ export default function App() {
               budget={budgetData?.budget}
               timeline={budgetData?.timeline}
               lineMetrics={budgetData?.lineMetrics}
+              overrides={budgetData?.overrides}
               actualRevenue={summary?.currentMonth?.revenue}
               actualNewMembers={members?.newMembersThisMonth}
               year={year}

@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import BudgetKPICard from './BudgetKPICard';
 import FunnelChart from './FunnelChart';
 import BudgetTimelineChart from './BudgetTimelineChart';
 import { TrendingUp, Users, MessageCircle, Target } from 'lucide-react';
+import { updateBudgetOverride } from '../api/dashboard';
 
-export default function BudgetSection({ budget, timeline, lineMetrics, actualRevenue, actualNewMembers, year, month }) {
+export default function BudgetSection({ budget, timeline, lineMetrics, actualRevenue, actualNewMembers, year, month, overrides: initialOverrides }) {
   if (!budget) {
     return (
       <div className="budget-no-data">
@@ -14,43 +15,85 @@ export default function BudgetSection({ budget, timeline, lineMetrics, actualRev
     );
   }
 
+  const [overrides, setOverrides] = useState(initialOverrides || {});
+
+  useEffect(() => {
+    setOverrides(initialOverrides || {});
+  }, [initialOverrides, year, month]);
+
+  const getVal = (key, field, defaultVal) => {
+    if (overrides[key] && overrides[key][field] !== undefined) {
+      return overrides[key][field];
+    }
+    return defaultVal;
+  };
+
+  const handleSave = useCallback(async (key, field, value) => {
+    setOverrides(prev => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value },
+    }));
+    try {
+      await updateBudgetOverride(year, month, key, field, value);
+    } catch (err) {
+      console.error('Failed to save override:', err);
+    }
+  }, [year, month]);
+
   const actualLineTotal = lineMetrics ? lineMetrics.totalFollowers : 0;
   const hasLineData = lineMetrics !== null && lineMetrics !== undefined;
+
+  const revBudget = getVal('revenue', 'budget', budget.revenue.total);
+  const revActual = getVal('revenue', 'actual', actualRevenue || 0);
+  const usersBudget = getVal('newUsers', 'budget', budget.newUsers.total);
+  const usersActual = getVal('newUsers', 'actual', actualNewMembers || 0);
+  const lineBudget = getVal('line', 'budget', budget.lineRegistrations);
+  const lineActual = getVal('line', 'actual', actualLineTotal);
+  const cvBudget = getVal('cv', 'budget', budget.funnel.conversions);
+  const cvActual = getVal('cv', 'actual', 0);
 
   return (
     <>
       <div className="budget-kpi-grid">
         <BudgetKPICard
           title="売上高"
-          budget={budget.revenue.total}
-          actual={actualRevenue || 0}
+          budget={revBudget}
+          actual={revActual}
           unit="currency"
           description="月間売上目標"
           icon={<TrendingUp size={20} color="#4F46E5" />}
+          editable
+          onSave={(field, value) => handleSave('revenue', field, value)}
         />
         <BudgetKPICard
           title="新規獲得ユーザー数"
-          budget={budget.newUsers.total}
-          actual={actualNewMembers || 0}
+          budget={usersBudget}
+          actual={usersActual}
           unit="number"
           description="月間入会目標"
           icon={<Users size={20} color="#10B981" />}
+          editable
+          onSave={(field, value) => handleSave('newUsers', field, value)}
         />
         <BudgetKPICard
           title="LINE登録数"
-          budget={budget.lineRegistrations}
-          actual={actualLineTotal}
+          budget={lineBudget}
+          actual={lineActual}
           unit="number"
           description={hasLineData ? 'LINE API連携中' : '予算のみ表示'}
           icon={<MessageCircle size={20} color="#06B6D4" />}
+          editable
+          onSave={(field, value) => handleSave('line', field, value)}
         />
         <BudgetKPICard
           title="CV（広告経由入会）"
-          budget={budget.funnel.conversions}
-          actual={0}
+          budget={cvBudget}
+          actual={cvActual}
           unit="number"
           description="予算のみ表示"
           icon={<Target size={20} color="#F59E0B" />}
+          editable
+          onSave={(field, value) => handleSave('cv', field, value)}
         />
       </div>
 
