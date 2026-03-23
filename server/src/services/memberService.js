@@ -125,4 +125,112 @@ async function getMemberHistory(months = 6) {
   return history;
 }
 
-module.exports = { getMemberMetrics };
+async function getMemberList() {
+  const members = [];
+  const seen = new Set();
+
+  for (const status of ['active', 'trialing', 'canceled']) {
+    for await (const sub of stripe.subscriptions.list({
+      status,
+      created: { gte: CUTOFF_TIMESTAMP },
+      limit: 100,
+      expand: ['data.customer', 'data.latest_invoice', 'data.items.data.price'],
+    })) {
+      if (!hasPaidInvoice(sub)) continue;
+      const custId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+      if (seen.has(custId)) continue;
+      seen.add(custId);
+
+      const customer = typeof sub.customer === 'object' ? sub.customer : null;
+      const price = sub.items?.data?.[0]?.price;
+
+      members.push({
+        email: customer?.email || '',
+        name: customer?.name || '',
+        amount: price?.unit_amount || 0,
+        planName: price?.nickname || price?.product?.name || 'プラン不明',
+        interval: price?.recurring?.interval || 'month',
+        createdAt: new Date(sub.created * 1000).toISOString(),
+        status: sub.status,
+      });
+    }
+  }
+
+  // Sort by createdAt descending (newest first)
+  members.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  return members;
+}
+
+async function getWeeklyMemberHistory(weeks = 4) {
+  const now = new Date();
+  const history = [];
+
+  // Get all active members count as of now
+  const activeCustomers = new Set();
+  for (const status of ['active', 'trialing']) {
+    for await (const sub of stripe.subscriptions.list({
+      status,
+      created: { gte: CUTOFF_TIMESTAMP },
+      limit: 100,
+      expand: ['data.latest_invoice'],
+    })) {
+      if (hasPaidInvoice(sub)) activeCustomers.add(sub.customer);
+    }
+  }
+  let currentTotal = activeCustomers.size;
+
+  for (let i = 0; i < weeks; i++) {
+    const weekEnd = new Date(now);
+    weekEnd.setDate(weekEnd.getDate() - (i * 7));
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const weekStart = new Date(weekEnd);
+    weekStart.setDate(weekStart.getDate() - 6);
+    weekStart.setHours(0, 0, 0, 0);
+
+    const startTs = Math.max(Math.floor(weekStart.getTime() / 1000), CUTOFF_TIMESTAMP);
+    const endTs = Math.floor(weekEnd.getTime() / 1000);
+
+    const newCusts = new Set();
+    for await (const sub of stripe.subscriptions.list({
+      created: { gte: startTs, lte: endTs },
+      limit: 100,
+      expand: ['data.latest_invoice'],
+    })) {
+      if (hasPaidInvoice(sub)) newCusts.add(sub.customer);
+    }
+
+    const churnedCusts = new Set();
+    for await (const sub of stripe.subscriptions.list({
+      status: 'canceled',
+      created: { gte: CUTOFF_TIMESTAMP },
+      limit: 100,
+      expand: ['data.latest_invoice'],
+    })) {
+      if (sub.canceled_at && sub.canceled_at >= startTs && sub.canceled_at <= endTs && hasPaidInvoice(sub)) {
+        churnedCusts.add(sub.customer);
+      }
+    }
+
+    const sm = weekStart.getMonth() + 1;
+    const sd = weekStart.getDate();
+    const em = weekEnd.getMonth() + 1;
+    const ed = weekEnd.getDate();
+
+    history.unshift({
+      label: `${sm}/${sd}〜${em}/${ed}`,
+      newMembers: newCusts.size,
+      churned: churnedCusts.size,
+      total: currentTotal,
+    });
+
+    // Walk back: previous week's total = current - new + churned
+    if (i < weeks - 1) {
+      currentTotal = currentTotal - newCusts.size + churnedCusts.size;
+    }
+  }
+
+  return history;
+}
+
+module.exports = { getMemberMetrics, getMemberList, getWeeklyMemberHistory };

@@ -7,6 +7,7 @@ import RevenueChart from './components/RevenueChart';
 import MemberChart from './components/MemberChart';
 import PlanPieChart from './components/PlanPieChart';
 import PlanBreakdownTable from './components/PlanBreakdownTable';
+import MemberListTable from './components/MemberListTable';
 import BudgetSection from './components/BudgetSection';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorMessage from './components/ErrorMessage';
@@ -16,7 +17,7 @@ export default function App() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
 
-  const { summary, members, plans, budgetData, loading, error, refresh, isDemo } = useDashboardData(year, month);
+  const { summary, members, plans, budgetData, memberList, weeklyMembers, loading, error, refresh, isDemo } = useDashboardData(year, month);
 
   return (
     <div>
@@ -60,10 +61,13 @@ export default function App() {
             <div className="section-title">売上・会員推移</div>
             <div className="charts-grid">
               <RevenueChart revenueHistory={summary?.revenueHistory} />
-              <MemberChart memberHistory={members?.memberHistory} />
+              <MemberChart memberHistory={members?.memberHistory} weeklyMembers={weeklyMembers} />
             </div>
 
-            <div className="section-title">プラン別分析</div>
+            <div className="section-title">会員一覧</div>
+            <MemberListTable memberList={memberList} />
+
+            <div className="section-title" style={{ marginTop: 24 }}>プラン別分析</div>
             <div className="plan-section">
               <PlanPieChart plans={plans?.plans} />
               <PlanBreakdownTable

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchSummary, fetchMembers, fetchPlans, fetchBudget, refreshCache } from '../api/dashboard';
+import { fetchSummary, fetchMembers, fetchPlans, fetchBudget, fetchMemberList, fetchWeeklyMembers, refreshCache } from '../api/dashboard';
 
 // Demo data based on actual Stripe data for preview when API is unavailable
 const DEMO_SUMMARY = {
@@ -34,6 +34,18 @@ const DEMO_MEMBERS = {
   ],
 };
 
+const DEMO_MEMBER_LIST = [
+  { email: 'tanaka@example.com', name: '田中太郎', amount: 49500, planName: 'Subscription creation（月額）', interval: 'month', createdAt: '2026-03-15T10:30:00.000Z', status: 'active' },
+  { email: 'suzuki@example.com', name: '鈴木花子', amount: 49500, planName: 'Subscription creation（月額）', interval: 'month', createdAt: '2026-03-10T14:00:00.000Z', status: 'active' },
+  { email: 'sato@example.com', name: '佐藤一郎', amount: 49500, planName: 'Subscription creation（月額）', interval: 'month', createdAt: '2026-02-28T09:15:00.000Z', status: 'active' },
+];
+
+const DEMO_WEEKLY_MEMBERS = [
+  { label: '3/3〜3/9', newMembers: 0, churned: 0, total: 1 },
+  { label: '3/10〜3/16', newMembers: 1, churned: 0, total: 2 },
+  { label: '3/17〜3/23', newMembers: 1, churned: 0, total: 3 },
+];
+
 const DEMO_PLANS = {
   plans: [
     {
@@ -55,6 +67,8 @@ export function useDashboardData(year, month) {
     members: null,
     plans: null,
     budgetData: null,
+    memberList: null,
+    weeklyMembers: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,13 +79,15 @@ export function useDashboardData(year, month) {
     setError(null);
     setIsDemo(false);
     try {
-      const [summary, members, plans, budgetData] = await Promise.all([
+      const [summary, members, plans, budgetData, memberList, weeklyMembers] = await Promise.all([
         fetchSummary(year, month),
         fetchMembers(year, month),
         fetchPlans(),
         fetchBudget(year, month).catch(() => null),
+        fetchMemberList().catch(() => []),
+        fetchWeeklyMembers().catch(() => []),
       ]);
-      setData({ summary, members, plans, budgetData });
+      setData({ summary, members, plans, budgetData, memberList, weeklyMembers });
     } catch (err) {
       // Fallback to demo data when API is unavailable
       setData({
@@ -79,6 +95,8 @@ export function useDashboardData(year, month) {
         members: DEMO_MEMBERS,
         plans: DEMO_PLANS,
         budgetData: null,
+        memberList: DEMO_MEMBER_LIST,
+        weeklyMembers: DEMO_WEEKLY_MEMBERS,
       });
       setIsDemo(true);
     } finally {
