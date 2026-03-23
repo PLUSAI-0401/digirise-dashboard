@@ -282,6 +282,39 @@ body {
   transition: width 0.3s ease;
 }
 
+/* Member List Table */
+.member-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.member-table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--color-border);
+  background: var(--color-bg);
+  white-space: nowrap;
+}
+
+.member-table td {
+  padding: 10px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.member-table tr:last-child td {
+  border-bottom: none;
+}
+
+.member-table tr:hover td {
+  background: rgba(79, 70, 229, 0.03);
+}
+
 /* Date Range Picker */
 .date-picker {
   display: flex;

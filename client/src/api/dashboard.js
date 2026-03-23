@@ -20,6 +20,12 @@ export const fetchPlans = () =>
 export const fetchBudget = (year, month) =>
   fetchJSON(`${API_BASE}/budget?year=${year}&month=${month}`);
 
+export const fetchMemberList = () =>
+  fetchJSON(`${API_BASE}/members/list`);
+
+export const fetchWeeklyMembers = () =>
+  fetchJSON(`${API_BASE}/members/weekly`);
+
 export const refreshCache = () =>
   fetch(`${API_BASE}/refresh`, { method: 'POST' }).then(r => r.json());
 

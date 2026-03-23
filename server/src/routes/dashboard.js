@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const NodeCache = require('node-cache');
 const { getMonthlySummary } = require('../services/salesService');
-const { getMemberMetrics } = require('../services/memberService');
+const { getMemberMetrics, getMemberList, getWeeklyMemberHistory } = require('../services/memberService');
 const { getPlanBreakdown } = require('../services/planService');
 const { getBudgetForMonth, getBudgetTimeline } = require('../data/budgetData');
 const { getLineMetrics } = require('../services/lineService');
@@ -46,6 +46,24 @@ router.get('/members', cacheMiddleware('members'), async (req, res, next) => {
     const year = parseInt(req.query.year) || now.getFullYear();
     const month = parseInt(req.query.month) || now.getMonth() + 1;
     const data = await getMemberMetrics(year, month);
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/members/list', cacheMiddleware('memberList'), async (req, res, next) => {
+  try {
+    const data = await getMemberList();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/members/weekly', cacheMiddleware('weeklyMembers'), async (req, res, next) => {
+  try {
+    const data = await getWeeklyMemberHistory();
     res.json(data);
   } catch (err) {
     next(err);
