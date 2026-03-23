@@ -32,4 +32,19 @@ app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+
+  // Keep-alive: ping self every 14 minutes to prevent Render free tier from sleeping
+  const KEEP_ALIVE_URL = process.env.RENDER_EXTERNAL_URL || process.env.KEEP_ALIVE_URL;
+  if (KEEP_ALIVE_URL) {
+    const INTERVAL_MS = 14 * 60 * 1000; // 14 minutes
+    setInterval(async () => {
+      try {
+        const res = await fetch(`${KEEP_ALIVE_URL}/api/health`);
+        console.log(`[keep-alive] ping ${res.status} at ${new Date().toISOString()}`);
+      } catch (err) {
+        console.warn(`[keep-alive] ping failed: ${err.message}`);
+      }
+    }, INTERVAL_MS);
+    console.log(`[keep-alive] enabled – pinging ${KEEP_ALIVE_URL} every 14 min`);
+  }
 });
