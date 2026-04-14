@@ -21,34 +21,62 @@ async function getMonthlyRevenue(year, month) {
   return { revenue, transactionCount: charges.length };
 }
 
+// Check if subscription has actual payment (not ¥0 trial)
+function hasPaidInvoice(sub) {
+  const invoice = sub.latest_invoice;
+  return invoice && typeof invoice === 'object' && invoice.amount_paid > 0;
+}
+
+// Apply subscription-level discount (coupon) to an amount
+function applyDiscount(amount, discount) {
+  if (!discount || !discount.coupon) return amount;
+  const coupon = discount.coupon;
+  if (coupon.percent_off) {
+    return Math.round(amount * (1 - coupon.percent_off / 100));
+  }
+  if (coupon.amount_off) {
+    return Math.max(0, amount - coupon.amount_off);
+  }
+  return amount;
+}
+
 async function calculateMRR() {
   let totalMRR = 0;
-  for await (const sub of stripe.subscriptions.list({
-    status: 'active',
-    created: { gte: CUTOFF_TIMESTAMP },
-    limit: 100,
-  })) {
-    for (const item of sub.items.data) {
-      const price = item.price;
-      const quantity = item.quantity || 1;
-      const unitAmount = price.unit_amount || 0;
 
-      if (price.recurring) {
-        switch (price.recurring.interval) {
-          case 'month':
-            totalMRR += unitAmount * quantity / price.recurring.interval_count;
-            break;
-          case 'year':
-            totalMRR += (unitAmount * quantity) / (12 * price.recurring.interval_count);
-            break;
-          case 'week':
-            totalMRR += (unitAmount * quantity * 4.33) / price.recurring.interval_count;
-            break;
-          case 'day':
-            totalMRR += (unitAmount * quantity * 30) / price.recurring.interval_count;
-            break;
+  for (const status of ['active', 'trialing']) {
+    for await (const sub of stripe.subscriptions.list({
+      status,
+      created: { gte: CUTOFF_TIMESTAMP },
+      limit: 100,
+      expand: ['data.discount', 'data.latest_invoice'],
+    })) {
+      // For trialing subs, only count those with actual payment
+      if (status === 'trialing' && !hasPaidInvoice(sub)) continue;
+
+      let subMonthlyTotal = 0;
+      for (const item of sub.items.data) {
+        const price = item.price;
+        const quantity = item.quantity || 1;
+        const unitAmount = price.unit_amount || 0;
+
+        if (price.recurring) {
+          switch (price.recurring.interval) {
+            case 'month':
+              subMonthlyTotal += unitAmount * quantity / price.recurring.interval_count;
+              break;
+            case 'year':
+              subMonthlyTotal += (unitAmount * quantity) / (12 * price.recurring.interval_count);
+              break;
+            case 'week':
+              subMonthlyTotal += (unitAmount * quantity * 4.33) / price.recurring.interval_count;
+              break;
+            case 'day':
+              subMonthlyTotal += (unitAmount * quantity * 30) / price.recurring.interval_count;
+              break;
+          }
         }
       }
+      totalMRR += applyDiscount(subMonthlyTotal, sub.discount);
     }
   }
   return Math.round(totalMRR);
