@@ -173,7 +173,7 @@ async function getMemberList() {
         email: customer?.email || '',
         name: customer?.name || '',
         amount: sub.latest_invoice?.amount_paid ?? price?.unit_amount ?? 0,
-        planName: `${productName}（${intervalLabel}）`,
+        planName: price?.nickname || `${productName}（${intervalLabel}）`,
         interval: price?.recurring?.interval || 'month',
         createdAt: new Date(sub.created * 1000).toISOString(),
         status: sub.status,
