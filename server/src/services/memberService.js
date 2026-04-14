@@ -180,13 +180,45 @@ async function getMemberList() {
         intervalLabel = price?.recurring?.interval || '';
       }
 
+      // Fetch charge + balance_transaction for fee and refund details
+      const invoice = sub.latest_invoice;
+      const chargeId = invoice?.charge;
+      let paymentDate = null;
+      let refundAmount = 0;
+      let stripeFee = 0;
+      let stripeFeeTax = 0;
+
+      if (chargeId && typeof chargeId === 'string') {
+        try {
+          const charge = await stripe.charges.retrieve(chargeId, {
+            expand: ['balance_transaction'],
+          });
+          paymentDate = charge.created ? new Date(charge.created * 1000).toISOString() : null;
+          refundAmount = charge.amount_refunded || 0;
+
+          const bt = charge.balance_transaction;
+          if (bt && typeof bt === 'object') {
+            const totalFee = bt.fee || 0;
+            // Stripe fee in Japan includes 10% consumption tax
+            stripeFee = Math.round(totalFee / 1.1);
+            stripeFeeTax = totalFee - stripeFee;
+          }
+        } catch (e) {
+          // If charge fetch fails, leave defaults
+        }
+      }
+
       members.push({
         email: customer?.email || '',
         name: customer?.name || '',
-        amount: sub.latest_invoice?.amount_paid ?? price?.unit_amount ?? 0,
+        amount: invoice?.amount_paid ?? price?.unit_amount ?? 0,
         planName: price?.nickname || `${productName}（${intervalLabel}）`,
         interval: price?.recurring?.interval || 'month',
         createdAt: new Date(sub.created * 1000).toISOString(),
+        paymentDate,
+        refundAmount,
+        stripeFee,
+        stripeFeeTax,
         status: sub.status,
       });
     }

@@ -71,9 +71,12 @@ export default function MemberListTable({ memberList }) {
             <tr>
               <th>メールアドレス</th>
               <th>名前</th>
-              <th>金額</th>
+              <th>決済金額</th>
+              <th>返金額</th>
               <th>プラン</th>
-              <th>入会日時</th>
+              <th>決済日時</th>
+              <th>Stripe手数料</th>
+              <th>手数料消費税</th>
               <th>ステータス</th>
             </tr>
           </thead>
@@ -85,8 +88,13 @@ export default function MemberListTable({ memberList }) {
                   <td style={{ fontFamily: 'monospace', fontSize: 13 }}>{member.email || '—'}</td>
                   <td>{member.name || '—'}</td>
                   <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{formatAmount(member.amount)}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontSize: 13, color: member.refundAmount ? '#DC2626' : '#6B7280' }}>
+                    {member.refundAmount ? formatAmount(member.refundAmount) : '—'}
+                  </td>
                   <td style={{ fontSize: 13 }}>{member.planName}</td>
-                  <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>{formatDate(member.createdAt)}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>{member.paymentDate ? formatDate(member.paymentDate) : '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>{member.stripeFee ? formatAmount(member.stripeFee) : '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>{member.stripeFeeTax ? formatAmount(member.stripeFeeTax) : '—'}</td>
                   <td>
                     <span style={{
                       display: 'inline-block',

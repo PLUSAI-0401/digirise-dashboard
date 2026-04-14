@@ -70,8 +70,12 @@ export default function ExportModal({ memberList, onClose }) {
     const rows = filteredMembers.map(m => ({
       'メールアドレス': m.email || '',
       '名前': m.name || '',
-      '金額': m.amount,
+      '決済金額': m.amount,
+      '返金額': m.refundAmount || 0,
       'プラン': m.planName,
+      '決済日時': m.paymentDate ? formatDateForExcel(m.paymentDate) : '',
+      'Stripe手数料': m.stripeFee || 0,
+      '手数料消費税': m.stripeFeeTax || 0,
       '入会日時': formatDateForExcel(m.createdAt),
       'ステータス': STATUS_LABELS[m.status] || m.status,
     }));
@@ -82,8 +86,12 @@ export default function ExportModal({ memberList, onClose }) {
     ws['!cols'] = [
       { wch: 30 }, // メールアドレス
       { wch: 15 }, // 名前
-      { wch: 12 }, // 金額
+      { wch: 12 }, // 決済金額
+      { wch: 10 }, // 返金額
       { wch: 18 }, // プラン
+      { wch: 18 }, // 決済日時
+      { wch: 14 }, // Stripe手数料
+      { wch: 14 }, // 手数料消費税
       { wch: 18 }, // 入会日時
       { wch: 10 }, // ステータス
     ];
