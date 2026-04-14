@@ -69,6 +69,8 @@ export default function MemberListTable({ memberList }) {
         <table className="member-table">
           <thead>
             <tr>
+              <th>顧客ID</th>
+              <th>支払いID</th>
               <th>メールアドレス</th>
               <th>名前</th>
               <th>決済金額</th>
@@ -85,6 +87,8 @@ export default function MemberListTable({ memberList }) {
               const status = STATUS_LABELS[member.status] || STATUS_LABELS.active;
               return (
                 <tr key={i}>
+                  <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#6B7280' }}>{member.customerId || '—'}</td>
+                  <td style={{ fontFamily: 'monospace', fontSize: 11, color: '#6B7280' }}>{member.chargeId || '—'}</td>
                   <td style={{ fontFamily: 'monospace', fontSize: 13 }}>{member.email || '—'}</td>
                   <td>{member.name || '—'}</td>
                   <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{formatAmount(member.amount)}</td>

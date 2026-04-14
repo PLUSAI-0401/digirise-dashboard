@@ -209,6 +209,8 @@ async function getMemberList() {
       }
 
       members.push({
+        customerId: custId,
+        chargeId: chargeId || '',
         email: customer?.email || '',
         name: customer?.name || '',
         amount: invoice?.amount_paid ?? price?.unit_amount ?? 0,

@@ -68,6 +68,8 @@ export default function ExportModal({ memberList, onClose }) {
 
   const handleDownload = () => {
     const rows = filteredMembers.map(m => ({
+      '顧客ID': m.customerId || '',
+      '支払いID': m.chargeId || '',
       'メールアドレス': m.email || '',
       '名前': m.name || '',
       '決済金額': m.amount,
@@ -84,6 +86,8 @@ export default function ExportModal({ memberList, onClose }) {
 
     // Set column widths
     ws['!cols'] = [
+      { wch: 22 }, // 顧客ID
+      { wch: 30 }, // 支払いID
       { wch: 30 }, // メールアドレス
       { wch: 15 }, // 名前
       { wch: 12 }, // 決済金額
