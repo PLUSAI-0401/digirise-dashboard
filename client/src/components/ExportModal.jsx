@@ -40,6 +40,7 @@ function formatDateForExcel(isoString) {
 export default function ExportModal({ memberList, onClose }) {
   const [period, setPeriod] = useState('all');
   const [selectedPlan, setSelectedPlan] = useState('all');
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const planOptions = useMemo(() => {
     if (!memberList) return [];
@@ -109,6 +110,11 @@ export default function ExportModal({ memberList, onClose }) {
     const fileName = `会員一覧_${periodLabel}_${planLabel}_${today}.xlsx`;
 
     XLSX.writeFile(wb, fileName);
+
+    setShowSuccess(true);
+    setTimeout(() => {
+      onClose();
+    }, 1500);
   };
 
   return (
@@ -124,9 +130,26 @@ export default function ExportModal({ memberList, onClose }) {
         style={{
           background: '#fff', borderRadius: 12, padding: '28px 32px',
           width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          position: 'relative', overflow: 'hidden',
         }}
         onClick={e => e.stopPropagation()}
       >
+        {showSuccess && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 10,
+            background: '#fff', borderRadius: 12,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 12,
+          }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <p style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: 0 }}>
+              ダウンロード完了
+            </p>
+          </div>
+        )}
         <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 700, color: '#111827' }}>
           会員データのダウンロード
         </h3>
