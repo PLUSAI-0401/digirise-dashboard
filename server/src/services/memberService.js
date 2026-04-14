@@ -180,11 +180,12 @@ async function getMemberList() {
         intervalLabel = price?.recurring?.interval || '';
       }
 
-      // Fetch charge + balance_transaction for fee and refund details
+      // Fetch charge + balance_transaction for fee, refund, and reason
       const invoice = sub.latest_invoice;
       const chargeId = invoice?.charge;
       let paymentDate = null;
       let refundAmount = 0;
+      let refundReason = '';
       let stripeFee = 0;
       let stripeFeeTax = 0;
 
@@ -196,6 +197,17 @@ async function getMemberList() {
           paymentDate = charge.created ? new Date(charge.created * 1000).toISOString() : null;
           refundAmount = charge.amount_refunded || 0;
 
+          // Get refund reason from the latest refund
+          if (refundAmount > 0 && charge.refunds?.data?.length > 0) {
+            const latestRefund = charge.refunds.data[0];
+            const reasonMap = {
+              duplicate: '重複',
+              fraudulent: '不正利用',
+              requested_by_customer: 'お客様の依頼',
+            };
+            refundReason = reasonMap[latestRefund.reason] || latestRefund.reason || '';
+          }
+
           const bt = charge.balance_transaction;
           if (bt && typeof bt === 'object') {
             const totalFee = bt.fee || 0;
@@ -205,6 +217,23 @@ async function getMemberList() {
           }
         } catch (e) {
           // If charge fetch fails, leave defaults
+        }
+      }
+
+      // Coupon / discount info
+      let couponName = '';
+      let couponAmount = 0;
+      const discount = sub.discount;
+      if (discount?.coupon) {
+        couponName = discount.coupon.name || discount.coupon.id || '';
+        const listPrice = price?.unit_amount || 0;
+        const paidAmount = invoice?.amount_paid ?? listPrice;
+        if (discount.coupon.percent_off) {
+          couponAmount = Math.round(listPrice * discount.coupon.percent_off / 100);
+        } else if (discount.coupon.amount_off) {
+          couponAmount = discount.coupon.amount_off;
+        } else if (listPrice > paidAmount) {
+          couponAmount = listPrice - paidAmount;
         }
       }
 
@@ -219,6 +248,9 @@ async function getMemberList() {
         createdAt: new Date(sub.created * 1000).toISOString(),
         paymentDate,
         refundAmount,
+        refundReason,
+        couponName,
+        couponAmount,
         stripeFee,
         stripeFeeTax,
         status: sub.status,

@@ -75,6 +75,9 @@ export default function MemberListTable({ memberList }) {
               <th>名前</th>
               <th>決済金額</th>
               <th>返金額</th>
+              <th>返金理由</th>
+              <th>クーポン</th>
+              <th>割引額</th>
               <th>プラン</th>
               <th>決済日時</th>
               <th>Stripe手数料</th>
@@ -94,6 +97,11 @@ export default function MemberListTable({ memberList }) {
                   <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{formatAmount(member.amount)}</td>
                   <td style={{ whiteSpace: 'nowrap', fontSize: 13, color: member.refundAmount ? '#DC2626' : '#6B7280' }}>
                     {member.refundAmount ? formatAmount(member.refundAmount) : '—'}
+                  </td>
+                  <td style={{ fontSize: 12, color: '#6B7280' }}>{member.refundReason || '—'}</td>
+                  <td style={{ fontSize: 12 }}>{member.couponName || '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontSize: 13, color: member.couponAmount ? '#4F46E5' : '#6B7280' }}>
+                    {member.couponAmount ? formatAmount(member.couponAmount) : '—'}
                   </td>
                   <td style={{ fontSize: 13 }}>{member.planName}</td>
                   <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>{member.paymentDate ? formatDate(member.paymentDate) : '—'}</td>

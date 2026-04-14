@@ -75,6 +75,9 @@ export default function ExportModal({ memberList, onClose }) {
       '名前': m.name || '',
       '決済金額': m.amount,
       '返金額': m.refundAmount || 0,
+      '返金理由': m.refundReason || '',
+      'クーポン名': m.couponName || '',
+      '割引額': m.couponAmount || 0,
       'プラン': m.planName,
       '決済日時': m.paymentDate ? formatDateForExcel(m.paymentDate) : '',
       'Stripe手数料': m.stripeFee || 0,
@@ -93,6 +96,9 @@ export default function ExportModal({ memberList, onClose }) {
       { wch: 15 }, // 名前
       { wch: 12 }, // 決済金額
       { wch: 10 }, // 返金額
+      { wch: 16 }, // 返金理由
+      { wch: 18 }, // クーポン名
+      { wch: 10 }, // 割引額
       { wch: 18 }, // プラン
       { wch: 18 }, // 決済日時
       { wch: 14 }, // Stripe手数料
