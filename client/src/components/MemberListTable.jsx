@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const STATUS_LABELS = {
   active: { text: '有効', bg: '#D1FAE5', color: '#065F46' },
@@ -21,6 +21,9 @@ function formatAmount(amount) {
 }
 
 export default function MemberListTable({ memberList }) {
+  const [expanded, setExpanded] = useState(false);
+  const DEFAULT_ROWS = 10;
+
   if (!memberList || memberList.length === 0) {
     return (
       <div className="chart-card" style={{ textAlign: 'center', padding: '40px 24px' }}>
@@ -28,6 +31,9 @@ export default function MemberListTable({ memberList }) {
       </div>
     );
   }
+
+  const displayedMembers = expanded ? memberList : memberList.slice(0, DEFAULT_ROWS);
+  const hiddenCount = memberList.length - DEFAULT_ROWS;
 
   return (
     <div className="chart-card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -49,7 +55,7 @@ export default function MemberListTable({ memberList }) {
             </tr>
           </thead>
           <tbody>
-            {memberList.map((member, i) => {
+            {displayedMembers.map((member, i) => {
               const status = STATUS_LABELS[member.status] || STATUS_LABELS.active;
               return (
                 <tr key={i}>
@@ -77,6 +83,25 @@ export default function MemberListTable({ memberList }) {
           </tbody>
         </table>
       </div>
+      {memberList.length > DEFAULT_ROWS && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            width: '100%',
+            padding: '12px',
+            border: 'none',
+            borderTop: '1px solid #E5E7EB',
+            background: 'transparent',
+            cursor: 'pointer',
+            color: '#4F46E5',
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: 'inherit',
+          }}
+        >
+          {expanded ? '閉じる' : `他${hiddenCount}名を表示`}
+        </button>
+      )}
     </div>
   );
 }

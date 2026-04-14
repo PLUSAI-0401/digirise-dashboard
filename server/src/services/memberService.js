@@ -134,7 +134,7 @@ async function getMemberList() {
       status,
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
-      expand: ['data.customer', 'data.latest_invoice', 'data.items.data.price'],
+      expand: ['data.customer', 'data.latest_invoice', 'data.items.data.price', 'data.items.data.price.product'],
     })) {
       if (!hasPaidInvoice(sub)) continue;
       const custId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
@@ -144,11 +144,36 @@ async function getMemberList() {
       const customer = typeof sub.customer === 'object' ? sub.customer : null;
       const price = sub.items?.data?.[0]?.price;
 
+      // Build plan name with product name + interval label
+      const productName = (typeof price?.product === 'object' && price.product.name)
+        ? price.product.name
+        : 'プラン名不明';
+
+      const intervalCount = price?.recurring?.interval_count || 1;
+      let intervalLabel;
+      if (price?.recurring?.interval === 'month') {
+        intervalLabel = intervalCount === 1 ? '月額' : `${intervalCount}ヶ月`;
+      } else if (price?.recurring?.interval === 'year') {
+        intervalLabel = intervalCount === 1 ? '年額' : `${intervalCount}年`;
+      } else if (price?.recurring?.interval === 'day') {
+        if (intervalCount >= 28 && intervalCount <= 31) {
+          intervalLabel = '月額';
+        } else if (intervalCount >= 89 && intervalCount <= 92) {
+          intervalLabel = '3ヶ月';
+        } else if (intervalCount >= 148 && intervalCount <= 152) {
+          intervalLabel = '5ヶ月';
+        } else {
+          intervalLabel = `${intervalCount}日`;
+        }
+      } else {
+        intervalLabel = price?.recurring?.interval || '';
+      }
+
       members.push({
         email: customer?.email || '',
         name: customer?.name || '',
-        amount: price?.unit_amount || 0,
-        planName: price?.nickname || price?.product?.name || 'プラン不明',
+        amount: sub.latest_invoice?.amount_paid ?? price?.unit_amount ?? 0,
+        planName: `${productName}（${intervalLabel}）`,
         interval: price?.recurring?.interval || 'month',
         createdAt: new Date(sub.created * 1000).toISOString(),
         status: sub.status,
