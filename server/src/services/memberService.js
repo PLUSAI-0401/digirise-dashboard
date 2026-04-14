@@ -128,13 +128,14 @@ async function getMemberHistory(months = 6) {
 async function getMemberList() {
   const members = [];
   const seen = new Set();
+  const productCache = {};
 
   for (const status of ['active', 'trialing', 'canceled']) {
     for await (const sub of stripe.subscriptions.list({
       status,
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
-      expand: ['data.customer', 'data.latest_invoice', 'data.items.data.price', 'data.items.data.price.product'],
+      expand: ['data.customer', 'data.latest_invoice', 'data.items.data.price'],
     })) {
       if (!hasPaidInvoice(sub)) continue;
       const custId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
@@ -144,10 +145,20 @@ async function getMemberList() {
       const customer = typeof sub.customer === 'object' ? sub.customer : null;
       const price = sub.items?.data?.[0]?.price;
 
-      // Build plan name with product name + interval label
-      const productName = (typeof price?.product === 'object' && price.product.name)
-        ? price.product.name
-        : 'プラン名不明';
+      // Fetch product name (cached to avoid redundant API calls)
+      let productName = 'プラン名不明';
+      if (price?.product) {
+        const productId = typeof price.product === 'string' ? price.product : price.product.id;
+        if (!productCache[productId]) {
+          try {
+            const product = await stripe.products.retrieve(productId);
+            productCache[productId] = product.name || 'プラン名不明';
+          } catch (e) {
+            productCache[productId] = 'プラン名不明';
+          }
+        }
+        productName = productCache[productId];
+      }
 
       const intervalCount = price?.recurring?.interval_count || 1;
       let intervalLabel;

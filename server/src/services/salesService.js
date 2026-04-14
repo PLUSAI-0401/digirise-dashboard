@@ -21,23 +21,13 @@ async function getMonthlyRevenue(year, month) {
   return { revenue, transactionCount: charges.length };
 }
 
+// Stripe uses 365.25/12 = 30.4375 days/month for MRR normalization
+const DAYS_PER_MONTH = 365.25 / 12;
+
 // Check if subscription has actual payment (not ¥0 trial)
 function hasPaidInvoice(sub) {
   const invoice = sub.latest_invoice;
   return invoice && typeof invoice === 'object' && invoice.amount_paid > 0;
-}
-
-// Apply subscription-level discount (coupon) to an amount
-function applyDiscount(amount, discount) {
-  if (!discount || !discount.coupon) return amount;
-  const coupon = discount.coupon;
-  if (coupon.percent_off) {
-    return Math.round(amount * (1 - coupon.percent_off / 100));
-  }
-  if (coupon.amount_off) {
-    return Math.max(0, amount - coupon.amount_off);
-  }
-  return amount;
 }
 
 async function calculateMRR() {
@@ -48,35 +38,40 @@ async function calculateMRR() {
       status,
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
-      expand: ['data.discount', 'data.latest_invoice'],
+      expand: ['data.latest_invoice'],
     })) {
-      // For trialing subs, only count those with actual payment
       if (status === 'trialing' && !hasPaidInvoice(sub)) continue;
 
-      let subMonthlyTotal = 0;
-      for (const item of sub.items.data) {
-        const price = item.price;
-        const quantity = item.quantity || 1;
-        const unitAmount = price.unit_amount || 0;
+      const invoice = sub.latest_invoice;
+      if (!invoice || typeof invoice !== 'object' || invoice.amount_paid <= 0) continue;
 
-        if (price.recurring) {
-          switch (price.recurring.interval) {
-            case 'month':
-              subMonthlyTotal += unitAmount * quantity / price.recurring.interval_count;
-              break;
-            case 'year':
-              subMonthlyTotal += (unitAmount * quantity) / (12 * price.recurring.interval_count);
-              break;
-            case 'week':
-              subMonthlyTotal += (unitAmount * quantity * 4.33) / price.recurring.interval_count;
-              break;
-            case 'day':
-              subMonthlyTotal += (unitAmount * quantity * 30) / price.recurring.interval_count;
-              break;
-          }
-        }
+      // Use invoice subtotal (after discounts, before tax) as actual billing amount
+      const billingAmount = invoice.subtotal || 0;
+      if (billingAmount <= 0) continue;
+
+      // Get billing interval for monthly normalization
+      const item = sub.items?.data?.[0];
+      if (!item?.price?.recurring) continue;
+
+      const interval = item.price.recurring.interval;
+      const intervalCount = item.price.recurring.interval_count || 1;
+
+      let monthlyAmount = 0;
+      switch (interval) {
+        case 'month':
+          monthlyAmount = billingAmount / intervalCount;
+          break;
+        case 'year':
+          monthlyAmount = billingAmount / (12 * intervalCount);
+          break;
+        case 'week':
+          monthlyAmount = (billingAmount * (DAYS_PER_MONTH / 7)) / intervalCount;
+          break;
+        case 'day':
+          monthlyAmount = (billingAmount * DAYS_PER_MONTH) / intervalCount;
+          break;
       }
-      totalMRR += applyDiscount(subMonthlyTotal, sub.discount);
+      totalMRR += monthlyAmount;
     }
   }
   return Math.round(totalMRR);
