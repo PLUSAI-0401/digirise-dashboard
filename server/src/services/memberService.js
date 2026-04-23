@@ -125,22 +125,25 @@ async function getMemberHistory(months = 6) {
   return history;
 }
 
-async function getMemberList() {
+async function getMemberList(year, month) {
   const members = [];
-  const seen = new Set();
   const productCache = {};
+
+  const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
   for (const status of ['active', 'trialing', 'canceled']) {
     for await (const sub of stripe.subscriptions.list({
       status,
-      created: { gte: CUTOFF_TIMESTAMP },
+      created: { gte: CUTOFF_TIMESTAMP, lte: endTimestamp },
       limit: 100,
       expand: ['data.customer', 'data.latest_invoice', 'data.items.data.price'],
     })) {
       if (!hasPaidInvoice(sub)) continue;
+
+      // For canceled subs: skip if canceled before the selected month started
+      if (sub.status === 'canceled' && sub.canceled_at && sub.canceled_at < startTimestamp) continue;
+
       const custId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
-      if (seen.has(custId)) continue;
-      seen.add(custId);
 
       const customer = typeof sub.customer === 'object' ? sub.customer : null;
       const price = sub.items?.data?.[0]?.price;

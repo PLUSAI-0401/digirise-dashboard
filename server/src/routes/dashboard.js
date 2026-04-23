@@ -54,7 +54,10 @@ router.get('/members', cacheMiddleware('members'), async (req, res, next) => {
 
 router.get('/members/list', cacheMiddleware('memberList'), async (req, res, next) => {
   try {
-    const data = await getMemberList();
+    const now = new Date();
+    const year = parseInt(req.query.year) || now.getFullYear();
+    const month = parseInt(req.query.month) || now.getMonth() + 1;
+    const data = await getMemberList(year, month);
     res.json(data);
   } catch (err) {
     next(err);

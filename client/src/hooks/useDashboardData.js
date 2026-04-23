@@ -84,7 +84,7 @@ export function useDashboardData(year, month) {
         fetchMembers(year, month),
         fetchPlans(),
         fetchBudget(year, month).catch(() => null),
-        fetchMemberList().catch(() => []),
+        fetchMemberList(year, month).catch(() => []),
         fetchWeeklyMembers().catch(() => []),
       ]);
       setData({ summary, members, plans, budgetData, memberList, weeklyMembers });

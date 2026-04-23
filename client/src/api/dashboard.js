@@ -20,8 +20,8 @@ export const fetchPlans = () =>
 export const fetchBudget = (year, month) =>
   fetchJSON(`${API_BASE}/budget?year=${year}&month=${month}`);
 
-export const fetchMemberList = () =>
-  fetchJSON(`${API_BASE}/members/list`);
+export const fetchMemberList = (year, month) =>
+  fetchJSON(`${API_BASE}/members/list?year=${year}&month=${month}`);
 
 export const fetchWeeklyMembers = () =>
   fetchJSON(`${API_BASE}/members/weekly`);
