@@ -131,138 +131,136 @@ async function getMemberList(year, month) {
 
   const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
-  for (const status of ['active', 'trialing', 'canceled']) {
-    for await (const sub of stripe.subscriptions.list({
-      status,
-      created: { gte: CUTOFF_TIMESTAMP, lte: endTimestamp },
-      limit: 100,
-      expand: ['data.customer', 'data.latest_invoice', 'data.items.data.price'],
-    })) {
-      if (!hasPaidInvoice(sub)) continue;
+  // Invoice-based approach: list all paid invoices for the selected month
+  // This captures every actual payment, including plan changes within the same subscription
+  for await (const invoice of stripe.invoices.list({
+    created: { gte: startTimestamp, lte: endTimestamp },
+    status: 'paid',
+    limit: 100,
+    expand: ['data.customer', 'data.discounts'],
+  })) {
+    // Skip zero-amount invoices and non-subscription invoices
+    if (invoice.amount_paid <= 0) continue;
+    if (!invoice.subscription) continue;
 
-      // For canceled subs: skip if canceled before the selected month started
-      if (sub.status === 'canceled' && sub.canceled_at && sub.canceled_at < startTimestamp) continue;
+    const customer = typeof invoice.customer === 'object' ? invoice.customer : null;
+    const custId = customer?.id || invoice.customer;
 
-      const custId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+    // Get plan info from invoice line items
+    const lineItem = invoice.lines?.data?.[0];
+    const price = lineItem?.price;
 
-      const customer = typeof sub.customer === 'object' ? sub.customer : null;
-      const price = sub.items?.data?.[0]?.price;
-
-      // Fetch product name (cached to avoid redundant API calls)
-      let productName = 'プラン名不明';
-      if (price?.product) {
-        const productId = typeof price.product === 'string' ? price.product : price.product.id;
-        if (!productCache[productId]) {
-          try {
-            const product = await stripe.products.retrieve(productId);
-            productCache[productId] = product.name || 'プラン名不明';
-          } catch (e) {
-            productCache[productId] = 'プラン名不明';
-          }
-        }
-        productName = productCache[productId];
-      }
-
-      const intervalCount = price?.recurring?.interval_count || 1;
-      let intervalLabel;
-      if (price?.recurring?.interval === 'month') {
-        intervalLabel = intervalCount === 1 ? '月額' : `${intervalCount}ヶ月`;
-      } else if (price?.recurring?.interval === 'year') {
-        intervalLabel = intervalCount === 1 ? '年額' : `${intervalCount}年`;
-      } else if (price?.recurring?.interval === 'day') {
-        if (intervalCount >= 28 && intervalCount <= 31) {
-          intervalLabel = '月額';
-        } else if (intervalCount >= 89 && intervalCount <= 92) {
-          intervalLabel = '3ヶ月';
-        } else if (intervalCount >= 148 && intervalCount <= 152) {
-          intervalLabel = '5ヶ月';
-        } else {
-          intervalLabel = `${intervalCount}日`;
-        }
-      } else {
-        intervalLabel = price?.recurring?.interval || '';
-      }
-
-      // Fetch charge + balance_transaction for fee, refund, and reason
-      const invoice = sub.latest_invoice;
-      const chargeId = invoice?.charge;
-      let paymentDate = null;
-      let refundAmount = 0;
-      let refundReason = '';
-      let stripeFee = 0;
-      let stripeFeeTax = 0;
-
-      if (chargeId && typeof chargeId === 'string') {
+    // Fetch product name (cached)
+    let productName = 'プラン名不明';
+    if (price?.product) {
+      const productId = typeof price.product === 'string' ? price.product : price.product.id;
+      if (!productCache[productId]) {
         try {
-          const charge = await stripe.charges.retrieve(chargeId, {
-            expand: ['balance_transaction'],
-          });
-          paymentDate = charge.created ? new Date(charge.created * 1000).toISOString() : null;
-          refundAmount = charge.amount_refunded || 0;
-
-          // Get refund reason from the latest refund
-          if (refundAmount > 0 && charge.refunds?.data?.length > 0) {
-            const latestRefund = charge.refunds.data[0];
-            const reasonMap = {
-              duplicate: '重複',
-              fraudulent: '不正利用',
-              requested_by_customer: 'お客様の依頼',
-            };
-            refundReason = reasonMap[latestRefund.reason] || latestRefund.reason || '';
-          }
-
-          const bt = charge.balance_transaction;
-          if (bt && typeof bt === 'object') {
-            const totalFee = bt.fee || 0;
-            // Stripe fee in Japan includes 10% consumption tax
-            stripeFee = Math.round(totalFee / 1.1);
-            stripeFeeTax = totalFee - stripeFee;
-          }
+          const product = await stripe.products.retrieve(productId);
+          productCache[productId] = product.name || 'プラン名不明';
         } catch (e) {
-          // If charge fetch fails, leave defaults
+          productCache[productId] = 'プラン名不明';
         }
       }
-
-      // Coupon / discount info
-      let couponName = '';
-      let couponAmount = 0;
-      const discount = sub.discount;
-      if (discount?.coupon) {
-        couponName = discount.coupon.name || discount.coupon.id || '';
-        const listPrice = price?.unit_amount || 0;
-        const paidAmount = invoice?.amount_paid ?? listPrice;
-        if (discount.coupon.percent_off) {
-          couponAmount = Math.round(listPrice * discount.coupon.percent_off / 100);
-        } else if (discount.coupon.amount_off) {
-          couponAmount = discount.coupon.amount_off;
-        } else if (listPrice > paidAmount) {
-          couponAmount = listPrice - paidAmount;
-        }
-      }
-
-      members.push({
-        customerId: custId,
-        chargeId: chargeId || '',
-        email: customer?.email || '',
-        name: customer?.name || '',
-        amount: invoice?.amount_paid ?? price?.unit_amount ?? 0,
-        planName: price?.nickname || `${productName}（${intervalLabel}）`,
-        interval: price?.recurring?.interval || 'month',
-        createdAt: new Date(sub.created * 1000).toISOString(),
-        paymentDate,
-        refundAmount,
-        refundReason,
-        couponName,
-        couponAmount,
-        stripeFee,
-        stripeFeeTax,
-        status: sub.status,
-      });
+      productName = productCache[productId];
     }
+
+    const intervalCount = price?.recurring?.interval_count || 1;
+    let intervalLabel;
+    if (price?.recurring?.interval === 'month') {
+      intervalLabel = intervalCount === 1 ? '月額' : `${intervalCount}ヶ月`;
+    } else if (price?.recurring?.interval === 'year') {
+      intervalLabel = intervalCount === 1 ? '年額' : `${intervalCount}年`;
+    } else if (price?.recurring?.interval === 'day') {
+      if (intervalCount >= 28 && intervalCount <= 31) {
+        intervalLabel = '月額';
+      } else if (intervalCount >= 89 && intervalCount <= 92) {
+        intervalLabel = '3ヶ月';
+      } else if (intervalCount >= 148 && intervalCount <= 152) {
+        intervalLabel = '5ヶ月';
+      } else {
+        intervalLabel = `${intervalCount}日`;
+      }
+    } else {
+      intervalLabel = price?.recurring?.interval || '';
+    }
+
+    // Fetch charge + balance_transaction for fee, refund, and reason
+    const chargeId = invoice.charge;
+    let paymentDate = null;
+    let refundAmount = 0;
+    let refundReason = '';
+    let stripeFee = 0;
+    let stripeFeeTax = 0;
+
+    if (chargeId && typeof chargeId === 'string') {
+      try {
+        const charge = await stripe.charges.retrieve(chargeId, {
+          expand: ['balance_transaction'],
+        });
+        paymentDate = charge.created ? new Date(charge.created * 1000).toISOString() : null;
+        refundAmount = charge.amount_refunded || 0;
+
+        // Get refund reason from the latest refund
+        if (refundAmount > 0 && charge.refunds?.data?.length > 0) {
+          const latestRefund = charge.refunds.data[0];
+          const reasonMap = {
+            duplicate: '重複',
+            fraudulent: '不正利用',
+            requested_by_customer: 'お客様の依頼',
+          };
+          refundReason = reasonMap[latestRefund.reason] || latestRefund.reason || '';
+        }
+
+        const bt = charge.balance_transaction;
+        if (bt && typeof bt === 'object') {
+          const totalFee = bt.fee || 0;
+          // Stripe fee in Japan includes 10% consumption tax
+          stripeFee = Math.round(totalFee / 1.1);
+          stripeFeeTax = totalFee - stripeFee;
+        }
+      } catch (e) {
+        // If charge fetch fails, leave defaults
+      }
+    }
+
+    // Coupon / discount info from invoice
+    let couponName = '';
+    let couponAmount = 0;
+    const totalDiscount = invoice.total_discount_amounts;
+    if (totalDiscount && totalDiscount.length > 0) {
+      couponAmount = totalDiscount.reduce((sum, d) => sum + (d.amount || 0), 0);
+    }
+    const discounts = invoice.discounts;
+    if (discounts && discounts.length > 0) {
+      const disc = typeof discounts[0] === 'object' ? discounts[0] : null;
+      if (disc?.coupon) {
+        couponName = disc.coupon.name || disc.coupon.id || '';
+      }
+    }
+
+    members.push({
+      customerId: custId,
+      chargeId: chargeId || '',
+      email: customer?.email || invoice.customer_email || '',
+      name: customer?.name || invoice.customer_name || '',
+      amount: invoice.amount_paid,
+      planName: price?.nickname || `${productName}（${intervalLabel}）`,
+      interval: price?.recurring?.interval || '',
+      createdAt: new Date(invoice.created * 1000).toISOString(),
+      paymentDate,
+      refundAmount,
+      refundReason,
+      couponName,
+      couponAmount,
+      stripeFee,
+      stripeFeeTax,
+      status: invoice.status,
+    });
   }
 
-  // Sort by createdAt descending (newest first)
-  members.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // Sort by paymentDate descending (newest first)
+  members.sort((a, b) => new Date(b.paymentDate || b.createdAt) - new Date(a.paymentDate || a.createdAt));
   return members;
 }
 
