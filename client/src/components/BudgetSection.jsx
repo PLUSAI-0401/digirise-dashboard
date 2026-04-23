@@ -28,7 +28,7 @@ export default function BudgetSection({ budget, timeline, lineMetrics, actualRev
     return (
       <div className="budget-no-data">
         <p>{year}年{month}月の予算データはありません。</p>
-        <p style={{ fontSize: 12, color: '#9CA3AF' }}>予算データは2026年2月～2027年1月の期間が対象です。</p>
+        <p style={{ fontSize: 12, color: '#9CA3AF' }}>予算データは2026年3月～2027年2月の期間が対象です。</p>
       </div>
     );
   }
