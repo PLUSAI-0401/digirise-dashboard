@@ -1,5 +1,6 @@
 const stripe = require('../config/stripe');
 const { CUTOFF_TIMESTAMP } = require('../utils/dateUtils');
+const { isPermanentlyFree } = require('../utils/subscriptionFilters');
 
 async function getPlanBreakdown() {
   // Get all active recurring prices with product info
@@ -16,15 +17,35 @@ async function getPlanBreakdown() {
   const planData = [];
 
   for (const price of prices) {
-    // Stripe基準: アクティブなサブスク件数を数える（hasPaidInvoiceフィルタ・顧客重複排除なし）
+    // 永続無料を除外したアクティブサブスク件数 + 月次実績売上を集計
     let subscriberCount = 0;
+    let actualMonthlyRevenue = 0;
+    const DAYS_PER_MONTH = 365.25 / 12;
+
     for await (const sub of stripe.subscriptions.list({
       status: 'active',
       price: price.id,
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
+      expand: ['data.discount.coupon', 'data.customer', 'data.latest_invoice'],
     })) {
+      if (isPermanentlyFree(sub)) continue;
       subscriberCount++;
+
+      // 各サブスクの実績ベース月次売上（割引後・税抜）
+      const inv = sub.latest_invoice;
+      const billingAmount = (inv && typeof inv === 'object') ? (inv.total_excluding_tax ?? 0) : 0;
+      if (billingAmount <= 0) continue;
+
+      const intervalCount = price.recurring.interval_count || 1;
+      let monthly = 0;
+      switch (price.recurring.interval) {
+        case 'month': monthly = billingAmount / intervalCount; break;
+        case 'year': monthly = billingAmount / (12 * intervalCount); break;
+        case 'week': monthly = (billingAmount * (DAYS_PER_MONTH / 7)) / intervalCount; break;
+        case 'day': monthly = (billingAmount * DAYS_PER_MONTH) / intervalCount; break;
+      }
+      actualMonthlyRevenue += monthly;
     }
 
     if (subscriberCount === 0) continue;
@@ -55,26 +76,13 @@ async function getPlanBreakdown() {
       intervalLabel = price.recurring.interval;
     }
 
-    // 月次売上に正規化（Stripe基準: 365.25/12 = 30.4375日/月）
-    const DAYS_PER_MONTH = 365.25 / 12;
-    let monthlyPerSub = price.unit_amount;
-    if (price.recurring.interval === 'year') {
-      monthlyPerSub = Math.round(price.unit_amount / (12 * intervalCount));
-    } else if (price.recurring.interval === 'month') {
-      monthlyPerSub = Math.round(price.unit_amount / intervalCount);
-    } else if (price.recurring.interval === 'week') {
-      monthlyPerSub = Math.round((price.unit_amount * (DAYS_PER_MONTH / 7)) / intervalCount);
-    } else if (price.recurring.interval === 'day') {
-      monthlyPerSub = Math.round((price.unit_amount * DAYS_PER_MONTH) / intervalCount);
-    }
-
     planData.push({
       planId: price.id,
       planName: `${productName}（${intervalLabel}）`,
       interval: price.recurring.interval,
       unitAmount: price.unit_amount,
       activeSubscribers: subscriberCount,
-      monthlyRevenue: monthlyPerSub * subscriberCount,
+      monthlyRevenue: Math.round(actualMonthlyRevenue),
     });
   }
 

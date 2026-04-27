@@ -1,5 +1,6 @@
 const stripe = require('../config/stripe');
 const { getMonthRange, getPreviousMonth, CUTOFF_TIMESTAMP } = require('../utils/dateUtils');
+const { isPermanentlyFree } = require('../utils/subscriptionFilters');
 
 async function getMonthlyRevenue(year, month) {
   const { startTimestamp, endTimestamp } = getMonthRange(year, month);
@@ -24,8 +25,11 @@ async function getMonthlyRevenue(year, month) {
 // Stripe uses 365.25/12 = 30.4375 days/month for MRR normalization
 const DAYS_PER_MONTH = 365.25 / 12;
 
-// MRR計算: Stripe基準（price.unit_amount × アクティブサブスク件数で算出、税抜）
-// クーポン100%off案件もアクティブとしてカウント（Stripe側の仕様に合わせる）
+// MRR計算: クーポン適用後の実績ベース（割引後・税抜）
+// - invoice.total_excluding_tax を月次正規化して合算
+// - 永続無料サブスクは除外
+// - 期間限定100%off中の会員は total_excluding_tax=0 のため自然と¥0貢献
+//   → クーポン期限切れ後に通常MRR貢献に切り替わる
 async function calculateMRR() {
   let totalMRR = 0;
 
@@ -34,28 +38,39 @@ async function calculateMRR() {
       status,
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
-      expand: ['data.items.data.price'],
+      expand: ['data.discount.coupon', 'data.customer', 'data.latest_invoice'],
     })) {
-      const item = sub.items?.data?.[0];
-      const price = item?.price;
-      if (!price?.unit_amount || !price?.recurring) continue;
+      // 永続無料は除外
+      if (isPermanentlyFree(sub)) continue;
 
-      const amount = price.unit_amount;
-      const intervalCount = price.recurring.interval_count || 1;
+      const invoice = sub.latest_invoice;
+      if (!invoice || typeof invoice !== 'object') continue;
+
+      // 割引後・税抜の請求額（実績ベース）
+      // total_excluding_tax: 全ての割引適用後・税適用前の合計額
+      const billingAmount = invoice.total_excluding_tax ?? 0;
+      if (billingAmount <= 0) continue;
+
+      // 月次正規化のための課金間隔取得
+      const item = sub.items?.data?.[0];
+      if (!item?.price?.recurring) continue;
+
+      const interval = item.price.recurring.interval;
+      const intervalCount = item.price.recurring.interval_count || 1;
 
       let monthlyAmount = 0;
-      switch (price.recurring.interval) {
+      switch (interval) {
         case 'month':
-          monthlyAmount = amount / intervalCount;
+          monthlyAmount = billingAmount / intervalCount;
           break;
         case 'year':
-          monthlyAmount = amount / (12 * intervalCount);
+          monthlyAmount = billingAmount / (12 * intervalCount);
           break;
         case 'week':
-          monthlyAmount = (amount * (DAYS_PER_MONTH / 7)) / intervalCount;
+          monthlyAmount = (billingAmount * (DAYS_PER_MONTH / 7)) / intervalCount;
           break;
         case 'day':
-          monthlyAmount = (amount * DAYS_PER_MONTH) / intervalCount;
+          monthlyAmount = (billingAmount * DAYS_PER_MONTH) / intervalCount;
           break;
       }
       totalMRR += monthlyAmount;
