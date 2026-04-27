@@ -81,6 +81,7 @@ export default function App() {
             <NewMembersByPlanCard
               newByPlan={members?.newByPlan}
               activeByPlan={members?.activeByPlan}
+              newRevenueByPlan={members?.newRevenueByPlan}
               newTotal={members?.newMembersThisMonth || 0}
               year={year}
               month={month}
@@ -95,7 +96,6 @@ export default function App() {
               <PlanBreakdownTable
                 plans={plans?.plans}
                 totalMonthlyRevenue={plans?.totalMonthlyRevenue}
-                overallArpu={plans?.overallArpu}
               />
             </div>
 

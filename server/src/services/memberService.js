@@ -30,17 +30,27 @@ async function getMemberMetrics(year, month) {
     }
   }
 
-  // 今月作成されたサブスク件数（新規入会、永続無料は除外）+ プラン別内訳
+  // 今月作成されたサブスク件数（新規入会、永続無料は除外）+ プラン別内訳 + 新規売上
+  // 新規入会売上 = 今月新規作成されたサブスクの latest_invoice.total_excluding_tax 合計（プラン別）
   let newMembersThisMonth = 0;
   const newByPlan = emptyPlanCounts();
+  const newRevenueByPlan = { '1month': 0, '3month': 0, '5month': 0, other: 0 };
   for await (const sub of stripe.subscriptions.list({
     created: { gte: startTimestamp, lte: endTimestamp },
     limit: 100,
-    expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price'],
+    expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price', 'data.latest_invoice'],
   })) {
     if (isPermanentlyFree(sub)) continue;
     newMembersThisMonth++;
-    newByPlan[getPlanKey(sub)]++;
+    const k = getPlanKey(sub);
+    newByPlan[k]++;
+
+    // 新規入会者の初回支払額（税抜）を集計
+    const inv = sub.latest_invoice;
+    if (inv && typeof inv === 'object' && inv.amount_paid > 0) {
+      const taxExcl = inv.total_excluding_tax ?? Math.round(inv.amount_paid / 1.1);
+      newRevenueByPlan[k] += taxExcl;
+    }
   }
 
   // 今月キャンセルされたサブスク件数（解約、永続無料は除外）+ プラン別内訳
@@ -73,6 +83,7 @@ async function getMemberMetrics(year, month) {
     activeByPlan,
     newMembersThisMonth,
     newByPlan,
+    newRevenueByPlan,
     churnedMembersThisMonth,
     churnedByPlan,
     churnRate,
