@@ -39,7 +39,7 @@ export default function App() {
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <h2 className="section-title" style={{ marginBottom: 0 }}>
             {year}年{month}月のダッシュボード
           </h2>
@@ -49,6 +49,18 @@ export default function App() {
             onYearChange={setYear}
             onMonthChange={setMonth}
           />
+        </div>
+
+        <div style={{
+          fontSize: 12,
+          color: '#6B7280',
+          marginBottom: 20,
+          padding: '8px 12px',
+          background: '#F9FAFB',
+          borderLeft: '3px solid #4F46E5',
+          borderRadius: 4,
+        }}>
+          ※ 売上・MRR等の金額は全て<strong>税抜</strong>表示です（Stripe決済の税込金額から消費税10%を控除）。会員数は永続無料(100%off forever)を除外した有料契約者数です。
         </div>
 
         {loading && <LoadingSpinner />}

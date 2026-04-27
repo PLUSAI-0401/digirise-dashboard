@@ -37,7 +37,7 @@ export default function RevenueChart({ revenueHistory }) {
 
   return (
     <div className="chart-card">
-      <div className="chart-card-title">売上推移</div>
+      <div className="chart-card-title">売上推移 <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 400 }}>(税抜)</span></div>
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={revenueHistory}>
           <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -47,7 +47,7 @@ export default function RevenueChart({ revenueHistory }) {
           <Legend wrapperStyle={{ fontSize: 13 }} />
           <Bar
             dataKey="revenue"
-            name="月間売上"
+            name="月間売上 (税抜)"
             fill="#4F46E5"
             radius={[4, 4, 0, 0]}
             barSize={40}

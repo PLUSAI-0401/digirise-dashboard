@@ -6,14 +6,14 @@ export default function PlanBreakdownTable({ plans, totalMonthlyRevenue }) {
 
   return (
     <div className="chart-card">
-      <div className="chart-card-title">プラン別詳細</div>
+      <div className="chart-card-title">プラン別詳細 <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 400 }}>(税抜・割引後実績)</span></div>
       <table className="plan-table">
         <thead>
           <tr>
             <th>プラン名</th>
-            <th>単価</th>
+            <th>単価 (税抜)</th>
             <th>会員数</th>
-            <th>月間売上</th>
+            <th>月間売上 (税抜)</th>
             <th>シェア</th>
           </tr>
         </thead>

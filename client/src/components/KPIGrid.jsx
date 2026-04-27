@@ -17,14 +17,14 @@ export default function KPIGrid({ summary, members }) {
 
   const cards = [
     {
-      title: '月間売上',
+      title: '月間売上 (税抜)',
       value: formatCurrency(summary.currentMonth.revenue),
       subtitle: `${summary.currentMonth.transactionCount}件の取引`,
       icon: TrendingUp,
       iconColor: 'primary',
     },
     {
-      title: '前月比',
+      title: '前月比 (税抜)',
       value: `${summary.monthOverMonth.percentage >= 0 ? '+' : ''}${summary.monthOverMonth.percentage}%`,
       subtitle: `${summary.monthOverMonth.absolute >= 0 ? '+' : ''}${formatCurrency(summary.monthOverMonth.absolute)}`,
       trend: summary.monthOverMonth.percentage,
@@ -32,14 +32,14 @@ export default function KPIGrid({ summary, members }) {
       iconColor: summary.monthOverMonth.percentage >= 0 ? 'success' : 'danger',
     },
     {
-      title: 'MRR（月次経常収益）',
+      title: 'MRR（月次経常収益・税抜）',
       value: formatCurrency(summary.mrr),
-      subtitle: '現在のアクティブサブスク',
+      subtitle: '割引後の実績ベース',
       icon: Repeat,
       iconColor: 'primary',
     },
     {
-      title: '累計売上',
+      title: '累計売上 (税抜)',
       value: formatCurrency(summary.cumulativeRevenue),
       subtitle: 'サービス開始からの合計',
       icon: Wallet,
