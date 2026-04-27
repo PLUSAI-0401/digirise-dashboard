@@ -1,8 +1,11 @@
 import React from 'react';
 import { formatCurrency } from '../utils/formatters';
 
-export default function PlanBreakdownTable({ plans, totalMonthlyRevenue }) {
+export default function PlanBreakdownTable({ plans, totalMonthlyRevenue, overallArpu }) {
   if (!plans || plans.length === 0) return null;
+
+  const totalSubscribers = plans.reduce((s, p) => s + p.activeSubscribers, 0);
+  const totalArpu = overallArpu ?? (totalSubscribers > 0 ? Math.round(totalMonthlyRevenue / totalSubscribers) : 0);
 
   return (
     <div className="chart-card">
@@ -14,6 +17,7 @@ export default function PlanBreakdownTable({ plans, totalMonthlyRevenue }) {
             <th>単価 (税抜)</th>
             <th>会員数</th>
             <th>月間売上 (税抜)</th>
+            <th>ARPU (税抜)</th>
             <th>シェア</th>
           </tr>
         </thead>
@@ -24,6 +28,7 @@ export default function PlanBreakdownTable({ plans, totalMonthlyRevenue }) {
               <td>{formatCurrency(plan.unitAmount)}</td>
               <td>{plan.activeSubscribers}名</td>
               <td style={{ fontWeight: 600 }}>{formatCurrency(plan.monthlyRevenue)}</td>
+              <td>{formatCurrency(plan.arpu ?? 0)}</td>
               <td>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div className="plan-share-bar" style={{ width: 80 }}>
@@ -42,8 +47,9 @@ export default function PlanBreakdownTable({ plans, totalMonthlyRevenue }) {
           <tr>
             <td>合計</td>
             <td>—</td>
-            <td>{plans.reduce((s, p) => s + p.activeSubscribers, 0)}名</td>
+            <td>{totalSubscribers}名</td>
             <td>{formatCurrency(totalMonthlyRevenue)}</td>
+            <td style={{ fontWeight: 600 }}>{formatCurrency(totalArpu)}</td>
             <td>100%</td>
           </tr>
         </tfoot>

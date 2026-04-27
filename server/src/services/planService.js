@@ -76,6 +76,9 @@ async function getPlanBreakdown() {
       intervalLabel = price.recurring.interval;
     }
 
+    // ARPU = 月次実績売上 / アクティブ会員数（プラン別）
+    const arpu = subscriberCount > 0 ? Math.round(actualMonthlyRevenue / subscriberCount) : 0;
+
     planData.push({
       planId: price.id,
       planName: `${productName}（${intervalLabel}）`,
@@ -83,21 +86,26 @@ async function getPlanBreakdown() {
       unitAmount: price.unit_amount,
       activeSubscribers: subscriberCount,
       monthlyRevenue: Math.round(actualMonthlyRevenue),
+      arpu,
     });
   }
 
   // Calculate percentages
   const totalMonthlyRevenue = planData.reduce((sum, p) => sum + p.monthlyRevenue, 0);
+  const totalSubscribers = planData.reduce((sum, p) => sum + p.activeSubscribers, 0);
   planData.forEach(p => {
     p.percentageOfTotal = totalMonthlyRevenue > 0
       ? parseFloat(((p.monthlyRevenue / totalMonthlyRevenue) * 100).toFixed(1))
       : 0;
   });
 
+  // 全体ARPU（全プランの月次売上合計 / 全アクティブ会員数）
+  const overallArpu = totalSubscribers > 0 ? Math.round(totalMonthlyRevenue / totalSubscribers) : 0;
+
   // Sort by revenue descending
   planData.sort((a, b) => b.monthlyRevenue - a.monthlyRevenue);
 
-  return { plans: planData, totalMonthlyRevenue };
+  return { plans: planData, totalMonthlyRevenue, totalSubscribers, overallArpu };
 }
 
 module.exports = { getPlanBreakdown };

@@ -5,6 +5,7 @@ import DateRangePicker from './components/DateRangePicker';
 import KPIGrid from './components/KPIGrid';
 import RevenueChart from './components/RevenueChart';
 import MemberChart from './components/MemberChart';
+import NewMembersByPlanCard from './components/NewMembersByPlanCard';
 import PlanPieChart from './components/PlanPieChart';
 import PlanBreakdownTable from './components/PlanBreakdownTable';
 import MemberListTable from './components/MemberListTable';
@@ -68,13 +69,22 @@ export default function App() {
 
         {!loading && !error && summary && members && (
           <>
-            <KPIGrid summary={summary} members={members} />
+            <KPIGrid summary={summary} members={members} plans={plans} />
 
             <div className="section-title">売上・会員推移</div>
             <div className="charts-grid">
               <RevenueChart revenueHistory={summary?.revenueHistory} />
               <MemberChart memberHistory={members?.memberHistory} weeklyMembers={weeklyMembers} />
             </div>
+
+            <div className="section-title">{year}年{month}月 新規入会内訳</div>
+            <NewMembersByPlanCard
+              newByPlan={members?.newByPlan}
+              activeByPlan={members?.activeByPlan}
+              newTotal={members?.newMembersThisMonth || 0}
+              year={year}
+              month={month}
+            />
 
             <div className="section-title">会員一覧</div>
             <MemberListTable memberList={memberList} />
@@ -85,6 +95,7 @@ export default function App() {
               <PlanBreakdownTable
                 plans={plans?.plans}
                 totalMonthlyRevenue={plans?.totalMonthlyRevenue}
+                overallArpu={plans?.overallArpu}
               />
             </div>
 

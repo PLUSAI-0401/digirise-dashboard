@@ -10,10 +10,13 @@ import {
   UserPlus,
   UserMinus,
   PercentCircle,
+  CircleDollarSign,
 } from 'lucide-react';
 
-export default function KPIGrid({ summary, members }) {
+export default function KPIGrid({ summary, members, plans }) {
   if (!summary || !members) return null;
+
+  const overallArpu = plans?.overallArpu ?? 0;
 
   const cards = [
     {
@@ -36,6 +39,13 @@ export default function KPIGrid({ summary, members }) {
       value: formatCurrency(summary.mrr),
       subtitle: '割引後の実績ベース',
       icon: Repeat,
+      iconColor: 'primary',
+    },
+    {
+      title: 'ARPU（1人当たり月次・税抜）',
+      value: formatCurrency(overallArpu),
+      subtitle: '月次売上 ÷ アクティブ会員',
+      icon: CircleDollarSign,
       iconColor: 'primary',
     },
     {

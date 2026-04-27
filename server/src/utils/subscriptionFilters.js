@@ -33,4 +33,28 @@ function isPermanentlyFree(sub) {
   return false;
 }
 
-module.exports = { isPermanentlyFree, couponIsPermanentFree };
+/**
+ * サブスクからプラン種別キー("1month" / "3month" / "5month" / "other")を判定する
+ * priceの recurring.interval / interval_count から判別
+ */
+function getPlanKey(sub) {
+  const item = sub.items?.data?.[0];
+  const price = item?.price;
+  if (!price?.recurring) return 'other';
+
+  const interval = price.recurring.interval;
+  const ic = price.recurring.interval_count || 1;
+
+  if (interval === 'month') {
+    if (ic === 1) return '1month';
+    if (ic === 3) return '3month';
+    if (ic === 5) return '5month';
+  } else if (interval === 'day') {
+    if (ic >= 28 && ic <= 31) return '1month';
+    if (ic >= 89 && ic <= 92) return '3month';
+    if (ic >= 148 && ic <= 152) return '5month';
+  }
+  return 'other';
+}
+
+module.exports = { isPermanentlyFree, couponIsPermanentFree, getPlanKey };

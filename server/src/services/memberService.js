@@ -1,51 +1,61 @@
 const stripe = require('../config/stripe');
 const { getMonthRange, getPreviousMonth, CUTOFF_TIMESTAMP } = require('../utils/dateUtils');
-const { isPermanentlyFree } = require('../utils/subscriptionFilters');
+const { isPermanentlyFree, getPlanKey } = require('../utils/subscriptionFilters');
 
 // 集計方針：
 // - 有料契約しているユーザー（クーポン100%offで実質無料の方も含む）をカウント
 // - ただし「永続無料（100%off + duration=forever のクーポン）」は社内テスト/特別契約として除外
 // - 期間限定割引中(duration=once)の会員は今後課金されるため含める
 
+function emptyPlanCounts() {
+  return { '1month': 0, '3month': 0, '5month': 0, other: 0 };
+}
+
 async function getMemberMetrics(year, month) {
   const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
-  // アクティブサブスク件数（永続無料を除外）
+  // アクティブサブスク件数（永続無料を除外）+ プラン別内訳
   let totalActiveMembers = 0;
+  const activeByPlan = emptyPlanCounts();
   for (const status of ['active', 'trialing']) {
     for await (const sub of stripe.subscriptions.list({
       status,
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
-      expand: ['data.discount.coupon', 'data.customer'],
+      expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price'],
     })) {
       if (isPermanentlyFree(sub)) continue;
       totalActiveMembers++;
+      activeByPlan[getPlanKey(sub)]++;
     }
   }
 
-  // 今月作成されたサブスク件数（新規入会、永続無料は除外）
+  // 今月作成されたサブスク件数（新規入会、永続無料は除外）+ プラン別内訳
   let newMembersThisMonth = 0;
+  const newByPlan = emptyPlanCounts();
   for await (const sub of stripe.subscriptions.list({
     created: { gte: startTimestamp, lte: endTimestamp },
     limit: 100,
-    expand: ['data.discount.coupon', 'data.customer'],
+    expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price'],
   })) {
     if (isPermanentlyFree(sub)) continue;
     newMembersThisMonth++;
+    newByPlan[getPlanKey(sub)]++;
   }
 
-  // 今月キャンセルされたサブスク件数（解約、永続無料は除外）
+  // 今月キャンセルされたサブスク件数（解約、永続無料は除外）+ プラン別内訳
   let churnedMembersThisMonth = 0;
+  const churnedByPlan = emptyPlanCounts();
   for await (const sub of stripe.subscriptions.list({
     status: 'canceled',
     created: { gte: CUTOFF_TIMESTAMP },
     limit: 100,
-    expand: ['data.discount.coupon', 'data.customer'],
+    expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price'],
   })) {
     if (sub.canceled_at && sub.canceled_at >= startTimestamp && sub.canceled_at <= endTimestamp) {
       if (isPermanentlyFree(sub)) continue;
       churnedMembersThisMonth++;
+      churnedByPlan[getPlanKey(sub)]++;
     }
   }
 
@@ -60,8 +70,11 @@ async function getMemberMetrics(year, month) {
 
   return {
     totalActiveMembers,
+    activeByPlan,
     newMembersThisMonth,
+    newByPlan,
     churnedMembersThisMonth,
+    churnedByPlan,
     churnRate,
     netGrowth: newMembersThisMonth - churnedMembersThisMonth,
     memberHistory,
@@ -79,13 +92,15 @@ async function getMemberHistory(months = 6) {
     const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
     let newCount = 0;
+    const newByPlan = emptyPlanCounts();
     for await (const sub of stripe.subscriptions.list({
       created: { gte: startTimestamp, lte: endTimestamp },
       limit: 100,
-      expand: ['data.discount.coupon', 'data.customer'],
+      expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price'],
     })) {
       if (isPermanentlyFree(sub)) continue;
       newCount++;
+      newByPlan[getPlanKey(sub)]++;
     }
 
     let churnedCount = 0;
@@ -106,6 +121,7 @@ async function getMemberHistory(months = 6) {
       month,
       label: `${month}月`,
       newMembers: newCount,
+      newByPlan,
       churned: churnedCount,
     });
   }
