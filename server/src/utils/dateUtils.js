@@ -1,5 +1,7 @@
-// データ起点: 2026年2月27日 20:00 JST (UTC+9)
-const DATA_CUTOFF = new Date('2026-02-27T20:00:00+09:00');
+// データ起点: 2026年2月1日 00:00 JST (UTC+9)
+// Stripe側の表示と整合させるため、launch日(2/27)以前のサブスクも含める
+// （s.ishimaru@digirise.ai 社内テスト含む。Stripeの「アクティブ」表示と一致）
+const DATA_CUTOFF = new Date('2026-02-01T00:00:00+09:00');
 const CUTOFF_TIMESTAMP = Math.floor(DATA_CUTOFF.getTime() / 1000);
 
 function getMonthRange(year, month) {

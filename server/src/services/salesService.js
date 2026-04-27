@@ -24,12 +24,8 @@ async function getMonthlyRevenue(year, month) {
 // Stripe uses 365.25/12 = 30.4375 days/month for MRR normalization
 const DAYS_PER_MONTH = 365.25 / 12;
 
-// Check if subscription has actual payment (not ¥0 trial)
-function hasPaidInvoice(sub) {
-  const invoice = sub.latest_invoice;
-  return invoice && typeof invoice === 'object' && invoice.amount_paid > 0;
-}
-
+// MRR計算: Stripe基準（price.unit_amount × アクティブサブスク件数で算出、税抜）
+// クーポン100%off案件もアクティブとしてカウント（Stripe側の仕様に合わせる）
 async function calculateMRR() {
   let totalMRR = 0;
 
@@ -38,37 +34,28 @@ async function calculateMRR() {
       status,
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
-      expand: ['data.latest_invoice'],
+      expand: ['data.items.data.price'],
     })) {
-      if (status === 'trialing' && !hasPaidInvoice(sub)) continue;
-
-      const invoice = sub.latest_invoice;
-      if (!invoice || typeof invoice !== 'object' || invoice.amount_paid <= 0) continue;
-
-      // Use invoice subtotal (after discounts, before tax) as actual billing amount
-      const billingAmount = invoice.subtotal || 0;
-      if (billingAmount <= 0) continue;
-
-      // Get billing interval for monthly normalization
       const item = sub.items?.data?.[0];
-      if (!item?.price?.recurring) continue;
+      const price = item?.price;
+      if (!price?.unit_amount || !price?.recurring) continue;
 
-      const interval = item.price.recurring.interval;
-      const intervalCount = item.price.recurring.interval_count || 1;
+      const amount = price.unit_amount;
+      const intervalCount = price.recurring.interval_count || 1;
 
       let monthlyAmount = 0;
-      switch (interval) {
+      switch (price.recurring.interval) {
         case 'month':
-          monthlyAmount = billingAmount / intervalCount;
+          monthlyAmount = amount / intervalCount;
           break;
         case 'year':
-          monthlyAmount = billingAmount / (12 * intervalCount);
+          monthlyAmount = amount / (12 * intervalCount);
           break;
         case 'week':
-          monthlyAmount = (billingAmount * (DAYS_PER_MONTH / 7)) / intervalCount;
+          monthlyAmount = (amount * (DAYS_PER_MONTH / 7)) / intervalCount;
           break;
         case 'day':
-          monthlyAmount = (billingAmount * DAYS_PER_MONTH) / intervalCount;
+          monthlyAmount = (amount * DAYS_PER_MONTH) / intervalCount;
           break;
       }
       totalMRR += monthlyAmount;

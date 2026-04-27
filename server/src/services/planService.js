@@ -16,22 +16,15 @@ async function getPlanBreakdown() {
   const planData = [];
 
   for (const price of prices) {
+    // Stripe基準: アクティブなサブスク件数を数える（hasPaidInvoiceフィルタ・顧客重複排除なし）
     let subscriberCount = 0;
-    const customerIds = new Set();
-
     for await (const sub of stripe.subscriptions.list({
       status: 'active',
       price: price.id,
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
-      expand: ['data.latest_invoice'],
     })) {
-      // Only count subscriptions with actual payment (exclude ¥0 trials)
-      const invoice = sub.latest_invoice;
-      if (invoice && typeof invoice === 'object' && invoice.amount_paid > 0) {
-        subscriberCount++;
-        customerIds.add(sub.customer);
-      }
+      subscriberCount++;
     }
 
     if (subscriberCount === 0) continue;
@@ -62,16 +55,17 @@ async function getPlanBreakdown() {
       intervalLabel = price.recurring.interval;
     }
 
-    // Normalize to monthly revenue: (unitAmount * 30) / (interval * intervalCount)
+    // 月次売上に正規化（Stripe基準: 365.25/12 = 30.4375日/月）
+    const DAYS_PER_MONTH = 365.25 / 12;
     let monthlyPerSub = price.unit_amount;
     if (price.recurring.interval === 'year') {
       monthlyPerSub = Math.round(price.unit_amount / (12 * intervalCount));
     } else if (price.recurring.interval === 'month') {
       monthlyPerSub = Math.round(price.unit_amount / intervalCount);
     } else if (price.recurring.interval === 'week') {
-      monthlyPerSub = Math.round((price.unit_amount * 4.33) / intervalCount);
+      monthlyPerSub = Math.round((price.unit_amount * (DAYS_PER_MONTH / 7)) / intervalCount);
     } else if (price.recurring.interval === 'day') {
-      monthlyPerSub = Math.round((price.unit_amount * 30) / intervalCount);
+      monthlyPerSub = Math.round((price.unit_amount * DAYS_PER_MONTH) / intervalCount);
     }
 
     planData.push({

@@ -1,73 +1,52 @@
 const stripe = require('../config/stripe');
 const { getMonthRange, getPreviousMonth, CUTOFF_TIMESTAMP } = require('../utils/dateUtils');
 
-// Check if subscription has actual payment (not ¥0 trial)
-function hasPaidInvoice(sub) {
-  const invoice = sub.latest_invoice;
-  return invoice && typeof invoice === 'object' && invoice.amount_paid > 0;
-}
+// Stripe基準でアクティブサブスク件数を集計する（hasPaidInvoiceフィルタ・顧客重複排除なし）
+// クーポン100%off案件もStripe側ではアクティブとして表示されるため、それに合わせる
 
 async function getMemberMetrics(year, month) {
   const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
-  // Active subscriptions with actual payment, created after cutoff only
-  const activeCustomers = new Set();
-  for await (const sub of stripe.subscriptions.list({
-    status: 'active',
-    created: { gte: CUTOFF_TIMESTAMP },
-    limit: 100,
-    expand: ['data.latest_invoice'],
-  })) {
-    if (hasPaidInvoice(sub)) {
-      activeCustomers.add(sub.customer);
+  // アクティブサブスク件数（Stripeの「有効」表示と一致）
+  let totalActiveMembers = 0;
+  for (const status of ['active', 'trialing']) {
+    for await (const sub of stripe.subscriptions.list({
+      status,
+      created: { gte: CUTOFF_TIMESTAMP },
+      limit: 100,
+    })) {
+      totalActiveMembers++;
     }
   }
-  for await (const sub of stripe.subscriptions.list({
-    status: 'trialing',
-    created: { gte: CUTOFF_TIMESTAMP },
-    limit: 100,
-    expand: ['data.latest_invoice'],
-  })) {
-    if (hasPaidInvoice(sub)) {
-      activeCustomers.add(sub.customer);
-    }
-  }
-  const totalActiveMembers = activeCustomers.size;
 
-  // New subscriptions this month (with actual payment)
-  const newCustomers = new Set();
+  // 今月作成されたサブスク件数（新規入会）
+  let newMembersThisMonth = 0;
   for await (const sub of stripe.subscriptions.list({
     created: { gte: startTimestamp, lte: endTimestamp },
     limit: 100,
-    expand: ['data.latest_invoice'],
   })) {
-    if (hasPaidInvoice(sub)) {
-      newCustomers.add(sub.customer);
-    }
+    newMembersThisMonth++;
   }
-  const newMembersThisMonth = newCustomers.size;
 
-  // Churned subscriptions this month (created after cutoff only)
-  const churnedCustomers = new Set();
+  // 今月キャンセルされたサブスク件数（解約）
+  let churnedMembersThisMonth = 0;
   for await (const sub of stripe.subscriptions.list({
     status: 'canceled',
     created: { gte: CUTOFF_TIMESTAMP },
     limit: 100,
-    expand: ['data.latest_invoice'],
   })) {
-    if (sub.canceled_at && sub.canceled_at >= startTimestamp && sub.canceled_at <= endTimestamp && hasPaidInvoice(sub)) {
-      churnedCustomers.add(sub.customer);
+    if (sub.canceled_at && sub.canceled_at >= startTimestamp && sub.canceled_at <= endTimestamp) {
+      churnedMembersThisMonth++;
     }
   }
-  const churnedMembersThisMonth = churnedCustomers.size;
 
-  // Churn rate
+  // 解約率
   const activeAtStartOfMonth = totalActiveMembers + churnedMembersThisMonth - newMembersThisMonth;
   const churnRate = activeAtStartOfMonth > 0
     ? parseFloat(((churnedMembersThisMonth / activeAtStartOfMonth) * 100).toFixed(2))
     : 0;
 
-  // Member history (last 6 months)
+  // 過去6ヶ月の会員推移
   const memberHistory = await getMemberHistory(6);
 
   return {
@@ -90,26 +69,22 @@ async function getMemberHistory(months = 6) {
     const month = date.getMonth() + 1;
     const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
-    const newCusts = new Set();
+    let newCount = 0;
     for await (const sub of stripe.subscriptions.list({
       created: { gte: startTimestamp, lte: endTimestamp },
       limit: 100,
-      expand: ['data.latest_invoice'],
     })) {
-      if (hasPaidInvoice(sub)) {
-        newCusts.add(sub.customer);
-      }
+      newCount++;
     }
 
-    const churnedCusts = new Set();
+    let churnedCount = 0;
     for await (const sub of stripe.subscriptions.list({
       status: 'canceled',
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
-      expand: ['data.latest_invoice'],
     })) {
-      if (sub.canceled_at && sub.canceled_at >= startTimestamp && sub.canceled_at <= endTimestamp && hasPaidInvoice(sub)) {
-        churnedCusts.add(sub.customer);
+      if (sub.canceled_at && sub.canceled_at >= startTimestamp && sub.canceled_at <= endTimestamp) {
+        churnedCount++;
       }
     }
 
@@ -117,8 +92,8 @@ async function getMemberHistory(months = 6) {
       year,
       month,
       label: `${month}月`,
-      newMembers: newCusts.size,
-      churned: churnedCusts.size,
+      newMembers: newCount,
+      churned: churnedCount,
     });
   }
 
@@ -268,19 +243,17 @@ async function getWeeklyMemberHistory(weeks = 4) {
   const now = new Date();
   const history = [];
 
-  // Get all active members count as of now
-  const activeCustomers = new Set();
+  // 現時点のアクティブサブスク件数（Stripe基準）
+  let currentTotal = 0;
   for (const status of ['active', 'trialing']) {
     for await (const sub of stripe.subscriptions.list({
       status,
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
-      expand: ['data.latest_invoice'],
     })) {
-      if (hasPaidInvoice(sub)) activeCustomers.add(sub.customer);
+      currentTotal++;
     }
   }
-  let currentTotal = activeCustomers.size;
 
   for (let i = 0; i < weeks; i++) {
     const weekEnd = new Date(now);
@@ -294,24 +267,22 @@ async function getWeeklyMemberHistory(weeks = 4) {
     const startTs = Math.max(Math.floor(weekStart.getTime() / 1000), CUTOFF_TIMESTAMP);
     const endTs = Math.floor(weekEnd.getTime() / 1000);
 
-    const newCusts = new Set();
+    let newCount = 0;
     for await (const sub of stripe.subscriptions.list({
       created: { gte: startTs, lte: endTs },
       limit: 100,
-      expand: ['data.latest_invoice'],
     })) {
-      if (hasPaidInvoice(sub)) newCusts.add(sub.customer);
+      newCount++;
     }
 
-    const churnedCusts = new Set();
+    let churnedCount = 0;
     for await (const sub of stripe.subscriptions.list({
       status: 'canceled',
       created: { gte: CUTOFF_TIMESTAMP },
       limit: 100,
-      expand: ['data.latest_invoice'],
     })) {
-      if (sub.canceled_at && sub.canceled_at >= startTs && sub.canceled_at <= endTs && hasPaidInvoice(sub)) {
-        churnedCusts.add(sub.customer);
+      if (sub.canceled_at && sub.canceled_at >= startTs && sub.canceled_at <= endTs) {
+        churnedCount++;
       }
     }
 
@@ -322,14 +293,14 @@ async function getWeeklyMemberHistory(weeks = 4) {
 
     history.unshift({
       label: `${sm}/${sd}〜${em}/${ed}`,
-      newMembers: newCusts.size,
-      churned: churnedCusts.size,
+      newMembers: newCount,
+      churned: churnedCount,
       total: currentTotal,
     });
 
-    // Walk back: previous week's total = current - new + churned
+    // 前週の累計 = 現累計 - 新規 + 解約
     if (i < weeks - 1) {
-      currentTotal = currentTotal - newCusts.size + churnedCusts.size;
+      currentTotal = currentTotal - newCount + churnedCount;
     }
   }
 
