@@ -35,17 +35,19 @@ async function getMonthActuals(year, month) {
     if (newByPlan[k] !== undefined) newByPlan[k]++;
   }
 
-  // 売上合計（chargeベース、返金控除済、Dashboardのcurrentmonth.revenueと一致）
+  // 売上合計（AIスクールのサブスク決済のみ、イベント等の単発決済を除外）
   let totalChargeIncTax = 0;
   let txCount = 0;
   for await (const ch of stripe.charges.list({
     created: { gte: startTimestamp, lte: endTimestamp },
     limit: 100,
+    expand: ['data.invoice'],
   })) {
-    if (ch.status === 'succeeded' && !ch.refunded) {
-      totalChargeIncTax += ch.amount - (ch.amount_refunded || 0);
-      txCount++;
-    }
+    if (ch.status !== 'succeeded' || ch.refunded) continue;
+    const inv = ch.invoice;
+    if (!inv || typeof inv !== 'object' || !inv.subscription) continue;
+    totalChargeIncTax += ch.amount - (ch.amount_refunded || 0);
+    txCount++;
   }
   const revTotal = Math.round(totalChargeIncTax / TAX_DIVISOR);
 

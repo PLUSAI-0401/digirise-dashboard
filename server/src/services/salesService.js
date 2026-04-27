@@ -6,26 +6,31 @@ const { isPermanentlyFree } = require('../utils/subscriptionFilters');
 const TAX_RATE = 0.10;
 const TAX_DIVISOR = 1 + TAX_RATE;
 
+// AIスクールのサブスク決済のみを売上として集計する
+// （Lumaイベント等のone-time決済を除外するため、charge.invoice.subscriptionの存在で判定）
 async function getMonthlyRevenue(year, month) {
   const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
-  const charges = [];
+  let totalIncludingTax = 0;
+  let txCount = 0;
   for await (const charge of stripe.charges.list({
     created: { gte: startTimestamp, lte: endTimestamp },
     limit: 100,
+    expand: ['data.invoice'],
   })) {
-    if (charge.status === 'succeeded' && !charge.refunded) {
-      charges.push(charge);
-    }
+    if (charge.status !== 'succeeded' || charge.refunded) continue;
+    // サブスク紐付けがあるchargeのみ集計（イベント決済等の単発決済を除外）
+    const inv = charge.invoice;
+    if (!inv || typeof inv !== 'object' || !inv.subscription) continue;
+
+    totalIncludingTax += charge.amount - (charge.amount_refunded || 0);
+    txCount++;
   }
 
-  // 税込合計を算出後、税抜に換算（個別変換による丸め誤差を回避）
-  const totalIncludingTax = charges.reduce((sum, charge) => {
-    return sum + charge.amount - (charge.amount_refunded || 0);
-  }, 0);
+  // 税込合計を税抜に換算（個別変換による丸め誤差を回避）
   const revenue = Math.round(totalIncludingTax / TAX_DIVISOR);
 
-  return { revenue, transactionCount: charges.length };
+  return { revenue, transactionCount: txCount };
 }
 
 // Stripe uses 365.25/12 = 30.4375 days/month for MRR normalization
@@ -90,10 +95,14 @@ async function getCumulativeRevenue() {
   for await (const charge of stripe.charges.list({
     created: { gte: CUTOFF_TIMESTAMP },
     limit: 100,
+    expand: ['data.invoice'],
   })) {
-    if (charge.status === 'succeeded') {
-      totalIncludingTax += charge.amount - (charge.amount_refunded || 0);
-    }
+    if (charge.status !== 'succeeded') continue;
+    // サブスク紐付けがあるchargeのみ集計（イベント決済等の単発決済を除外）
+    const inv = charge.invoice;
+    if (!inv || typeof inv !== 'object' || !inv.subscription) continue;
+
+    totalIncludingTax += charge.amount - (charge.amount_refunded || 0);
   }
   // 税抜換算
   return Math.round(totalIncludingTax / TAX_DIVISOR);
