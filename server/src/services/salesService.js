@@ -2,6 +2,10 @@ const stripe = require('../config/stripe');
 const { getMonthRange, getPreviousMonth, CUTOFF_TIMESTAMP } = require('../utils/dateUtils');
 const { isPermanentlyFree } = require('../utils/subscriptionFilters');
 
+// 日本の消費税率（10%）。Stripeのcharge.amountは税込のため、税抜換算に使用
+const TAX_RATE = 0.10;
+const TAX_DIVISOR = 1 + TAX_RATE;
+
 async function getMonthlyRevenue(year, month) {
   const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
@@ -15,9 +19,11 @@ async function getMonthlyRevenue(year, month) {
     }
   }
 
-  const revenue = charges.reduce((sum, charge) => {
+  // 税込合計を算出後、税抜に換算（個別変換による丸め誤差を回避）
+  const totalIncludingTax = charges.reduce((sum, charge) => {
     return sum + charge.amount - (charge.amount_refunded || 0);
   }, 0);
+  const revenue = Math.round(totalIncludingTax / TAX_DIVISOR);
 
   return { revenue, transactionCount: charges.length };
 }
@@ -80,16 +86,17 @@ async function calculateMRR() {
 }
 
 async function getCumulativeRevenue() {
-  let total = 0;
+  let totalIncludingTax = 0;
   for await (const charge of stripe.charges.list({
     created: { gte: CUTOFF_TIMESTAMP },
     limit: 100,
   })) {
     if (charge.status === 'succeeded') {
-      total += charge.amount - (charge.amount_refunded || 0);
+      totalIncludingTax += charge.amount - (charge.amount_refunded || 0);
     }
   }
-  return total;
+  // 税抜換算
+  return Math.round(totalIncludingTax / TAX_DIVISOR);
 }
 
 async function getRevenueHistory(months = 6) {
