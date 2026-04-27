@@ -7,6 +7,7 @@ const { getPlanBreakdown } = require('../services/planService');
 const { getBudgetForMonth, getBudgetTimeline } = require('../data/budgetData');
 const { getLineMetrics } = require('../services/lineService');
 const { getOverrides, saveOverride } = require('../data/budgetOverrides');
+const { getActualsRange, actualsToCSV } = require('../services/actualsExport');
 
 const cache = new NodeCache({
   stdTTL: parseInt(process.env.CACHE_TTL_SECONDS) || 300,
@@ -123,6 +124,54 @@ router.put('/budget/override', async (req, res, next) => {
 router.post('/refresh', (req, res) => {
   cache.flushAll();
   res.json({ message: 'Cache cleared' });
+});
+
+// 実績データのエクスポート（スプシ貼り付け用）
+// クエリ: ?from=2026-3&to=2026-12 で範囲指定 or デフォルトはサービス開始から現在まで
+// format=csv|json で出力形式選択
+router.get('/actuals/export', async (req, res, next) => {
+  try {
+    const fmt = (req.query.format || 'csv').toLowerCase();
+
+    // デフォルト範囲: 2026年3月から現在月まで
+    const now = new Date();
+    let fromY = 2026, fromM = 3;
+    let toY = now.getFullYear(), toM = now.getMonth() + 1;
+    if (req.query.from) {
+      const [y, m] = req.query.from.split('-').map(Number);
+      if (y && m) { fromY = y; fromM = m; }
+    }
+    if (req.query.to) {
+      const [y, m] = req.query.to.split('-').map(Number);
+      if (y && m) { toY = y; toM = m; }
+    }
+
+    // 月リスト生成
+    const months = [];
+    let cy = fromY, cm = fromM;
+    while (cy < toY || (cy === toY && cm <= toM)) {
+      months.push({ year: cy, month: cm });
+      cm++; if (cm > 12) { cm = 1; cy++; }
+    }
+
+    const cacheKey = `actuals_${fromY}_${fromM}_${toY}_${toM}`;
+    let actuals = cache.get(cacheKey);
+    if (!actuals) {
+      actuals = await getActualsRange(months);
+      cache.set(cacheKey, actuals);
+    }
+
+    if (fmt === 'json') {
+      return res.json({ actuals });
+    }
+    // CSV (default)
+    const csv = actualsToCSV(actuals);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="digirise_actuals_${fromY}-${fromM}_to_${toY}-${toM}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;
