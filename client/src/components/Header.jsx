@@ -1,10 +1,15 @@
 import React from 'react';
-import { RefreshCw, FileDown } from 'lucide-react';
+import { RefreshCw, FileDown, FileText } from 'lucide-react';
 
 export default function Header({ onRefresh, loading }) {
   const handleExportActuals = () => {
     // 実績CSVをダウンロード（スプシ貼り付け用）
     window.open('/api/dashboard/actuals/export?format=csv', '_blank');
+  };
+
+  const handleOpenRequirements = () => {
+    // 機能要件ページを新しいタブで開く
+    window.open('/requirements.html', '_blank');
   };
 
   return (
@@ -17,6 +22,15 @@ export default function Header({ onRefresh, loading }) {
         </div>
       </div>
       <div className="header-right" style={{ display: 'flex', gap: 8 }}>
+        <button
+          className="refresh-btn"
+          onClick={handleOpenRequirements}
+          title="ダッシュボードの集計ロジック・除外条件などの機能要件を別タブで表示"
+          style={{ background: '#fff', border: '1px solid #E5E7EB' }}
+        >
+          <FileText size={14} />
+          機能要件
+        </button>
         <button
           className="refresh-btn"
           onClick={handleExportActuals}

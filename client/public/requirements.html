@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>機能要件 - デジライズAIスクール売上管理ダッシュボード</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
+    background: #F9FAFB;
+    color: #111827;
+    line-height: 1.7;
+    padding: 0;
+  }
+  header {
+    background: #fff;
+    border-bottom: 1px solid #E5E7EB;
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .logo {
+    width: 36px; height: 36px;
+    background: #4F46E5;
+    color: #fff;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 18px;
+  }
+  header .titles { flex: 1; }
+  header h1 { font-size: 16px; font-weight: 700; color: #111827; }
+  header .sub { font-size: 12px; color: #6B7280; }
+  header a {
+    color: #4F46E5;
+    text-decoration: none;
+    font-size: 13px;
+    padding: 6px 12px;
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    transition: all .2s;
+  }
+  header a:hover { background: #F3F4F6; }
+
+  main {
+    max-width: 1100px;
+    margin: 32px auto;
+    padding: 0 32px;
+  }
+  .page-title {
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    color: #111827;
+  }
+  .page-sub {
+    font-size: 14px;
+    color: #6B7280;
+    margin-bottom: 32px;
+  }
+  .updated {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    background: #EEF2FF;
+    color: #4F46E5;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .toc {
+    background: #fff;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+  .toc h2 { font-size: 14px; font-weight: 700; color: #6B7280; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  .toc ul { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+  .toc a {
+    color: #374151;
+    text-decoration: none;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: background .15s;
+  }
+  .toc a:hover { background: #F3F4F6; color: #4F46E5; }
+  .toc .num {
+    display: inline-block;
+    min-width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
+    background: #4F46E5;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  section.card {
+    background: #fff;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    scroll-margin-top: 80px;
+  }
+  section h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #EEF2FF;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section h2 .icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, #4F46E5, #7C3AED);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  section h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #374151;
+    margin: 18px 0 8px;
+  }
+  section p { font-size: 14px; color: #4B5563; margin-bottom: 8px; }
+  section ul { padding-left: 24px; margin-bottom: 12px; }
+  section li { font-size: 14px; color: #4B5563; margin-bottom: 4px; }
+  strong { color: #111827; font-weight: 600; }
+  code {
+    background: #F3F4F6;
+    color: #DC2626;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', Monaco, Menlo, monospace;
+    font-size: 12px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  th, td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #F3F4F6;
+  }
+  th {
+    background: #F9FAFB;
+    font-weight: 600;
+    color: #374151;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  td .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .pill.included { background: #D1FAE5; color: #065F46; }
+  .pill.excluded { background: #FEE2E2; color: #991B1B; }
+  .pill.note { background: #FEF3C7; color: #92400E; }
+
+  .formula {
+    background: #1F2937;
+    color: #F9FAFB;
+    padding: 14px 18px;
+    border-radius: 8px;
+    font-family: 'SF Mono', Monaco, Menlo, monospace;
+    font-size: 13px;
+    margin: 12px 0;
+    overflow-x: auto;
+  }
+  .callout {
+    background: #FFF7ED;
+    border-left: 4px solid #F59E0B;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 12px 0;
+    font-size: 13px;
+    color: #92400E;
+  }
+  .callout.info {
+    background: #EFF6FF;
+    border-color: #3B82F6;
+    color: #1E40AF;
+  }
+  .callout.success {
+    background: #ECFDF5;
+    border-color: #10B981;
+    color: #065F46;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .kpi-card {
+    background: #F9FAFB;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .kpi-card .label { font-size: 12px; color: #6B7280; margin-bottom: 4px; }
+  .kpi-card .value { font-size: 22px; font-weight: 700; color: #111827; }
+  .kpi-card .desc { font-size: 11px; color: #9CA3AF; margin-top: 4px; }
+
+  footer {
+    text-align: center;
+    padding: 32px;
+    font-size: 12px;
+    color: #9CA3AF;
+  }
+
+  @media (max-width: 768px) {
+    main { padding: 0 16px; margin: 16px auto; }
+    .toc ul { grid-template-columns: 1fr; }
+    section.card { padding: 20px; }
+    .page-title { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">D</div>
+  <div class="titles">
+    <h1>機能要件</h1>
+    <div class="sub">デジライズAIスクール 売上管理ダッシュボード</div>
+  </div>
+  <a href="/">← ダッシュボードへ戻る</a>
+</header>
+
+<main>
+  <h1 class="page-title">機能要件サマリ <span class="updated">2026年4月更新</span></h1>
+  <p class="page-sub">本ダッシュボードで集計している指標の定義・除外条件・整合性の説明書です。</p>
+
+  <nav class="toc">
+    <h2>目次</h2>
+    <ul>
+      <li><a href="#sec-1"><span class="num">1</span> 売上集計</a></li>
+      <li><a href="#sec-2"><span class="num">2</span> 会員数集計</a></li>
+      <li><a href="#sec-3"><span class="num">3</span> MRR（月次経常収益）</a></li>
+      <li><a href="#sec-4"><span class="num">4</span> プラン別分析</a></li>
+      <li><a href="#sec-5"><span class="num">5</span> 新規入会内訳</a></li>
+      <li><a href="#sec-6"><span class="num">6</span> 会員一覧</a></li>
+      <li><a href="#sec-7"><span class="num">7</span> データエクスポート</a></li>
+      <li><a href="#sec-8"><span class="num">8</span> 予実管理</a></li>
+      <li><a href="#sec-9"><span class="num">9</span> システム仕様</a></li>
+      <li><a href="#sec-10"><span class="num">10</span> 主要KPIサマリ</a></li>
+      <li><a href="#sec-11"><span class="num">11</span> データ整合性</a></li>
+    </ul>
+  </nav>
+
+  <!-- 1. 売上集計 -->
+  <section class="card" id="sec-1">
+    <h2><span class="icon">1</span> 売上集計</h2>
+
+    <h3>月間売上 / 累計売上</h3>
+    <table>
+      <thead><tr><th>項目</th><th>仕様</th></tr></thead>
+      <tbody>
+        <tr><td>対象</td><td>AIスクールのサブスクリプション決済のみ <span class="pill included">含む</span></td></tr>
+        <tr><td>判定基準</td><td><code>charge.invoice.subscription</code> が存在する成功charge</td></tr>
+        <tr><td>除外</td><td>Lumaイベント等の単発決済 <span class="pill excluded">除外</span></td></tr>
+        <tr><td>表示単位</td><td>税抜（消費税10%控除）</td></tr>
+        <tr><td>返金扱い</td><td><code>charge.amount_refunded</code> を差し引いた純額</td></tr>
+      </tbody>
+    </table>
+
+    <div class="formula">月間売上 = Σ(charge.amount − charge.amount_refunded) ÷ 1.1</div>
+
+    <h3>売上推移</h3>
+    <p>過去6ヶ月の月別売上を <code>RevenueChart</code> でグラフ表示。</p>
+
+    <div class="callout info">
+      <strong>📍 表示の徹底</strong><br>
+      ダッシュボード上部に「※ 売上・MRR等の金額は全て税抜表示です」を明記。各KPIカード・グラフタイトル・プラン別詳細にも「(税抜)」を表示。
+    </div>
+  </section>
+
+  <!-- 2. 会員数集計 -->
+  <section class="card" id="sec-2">
+    <h2><span class="icon">2</span> 会員数集計</h2>
+
+    <h3>「会員」の定義</h3>
+    <table>
+      <thead><tr><th>分類</th><th>カウント対象か</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>有料契約者（フル課金）</td><td><span class="pill included">含む</span></td><td>本来の課金対象</td></tr>
+        <tr><td>クーポン100%off中（期間限定）</td><td><span class="pill included">含む</span></td><td>いずれ通常課金される</td></tr>
+        <tr><td>永続無料（100%off + duration=forever）</td><td><span class="pill excluded">除外</span></td><td>社内テスト・特別契約のため</td></tr>
+      </tbody>
+    </table>
+
+    <h3>判定ロジック</h3>
+    <ul>
+      <li>永続無料判定: <code>subscription.discount.coupon.percent_off === 100 && coupon.duration === 'forever'</code></li>
+      <li><code>subscription.discounts</code>(新plural) と <code>customer.discount</code> も同様にチェック</li>
+    </ul>
+
+    <h3>カウント方法</h3>
+    <p><strong>サブスク件数ベース</strong>（Stripeの「有効です」表示と一致する単位）。同一顧客の複数プランは別件として計上。</p>
+
+    <h3>データ起点</h3>
+    <p><code>CUTOFF_TIMESTAMP = 2026-02-01 00:00 JST</code></p>
+  </section>
+
+  <!-- 3. MRR -->
+  <section class="card" id="sec-3">
+    <h2><span class="icon">3</span> MRR（月次経常収益）</h2>
+
+    <h3>計算ソース</h3>
+    <p><code>invoice.total_excluding_tax</code>（割引後・税抜の実績ベース）を月次正規化して合算。</p>
+
+    <div class="formula">MRR = Σ (invoice.total_excluding_tax × 30.4375 ÷ 課金日数) <br>※ Stripe基準: 月 = 365.25/12 ≈ 30.4375 日</div>
+
+    <h3>期間限定100%off中の会員</h3>
+    <ul>
+      <li>現時点で <code>total_excluding_tax = 0</code> のため<strong>¥0貢献</strong></li>
+      <li>クーポン期限切れ後に通常MRRに自動切替</li>
+    </ul>
+
+    <p>永続無料は除外。</p>
+  </section>
+
+  <!-- 4. プラン別分析 -->
+  <section class="card" id="sec-4">
+    <h2><span class="icon">4</span> プラン別分析</h2>
+
+    <h3>プラン判別</h3>
+    <p><code>price.recurring.interval</code> + <code>interval_count</code> から自動判定:</p>
+    <ul>
+      <li>1ヶ月プラン: 30日 or 1month</li>
+      <li>3ヶ月プラン: 90日 or 3month</li>
+      <li>5ヶ月プラン: 150日 or 5month</li>
+    </ul>
+
+    <h3>表示項目</h3>
+    <ul>
+      <li>会員数（プラン別）</li>
+      <li>単価（税抜）</li>
+      <li>月間売上（税抜・割引後実績）</li>
+      <li>シェア(%)</li>
+    </ul>
+
+    <h3>ARPU</h3>
+    <div class="callout">
+      <strong>⏳ 現在は非表示</strong><br>
+      5ヶ月プラン会員のライフサイクル完了後（<strong>2026年8月以降</strong>）に正確な実績値で再導入予定。
+    </div>
+  </section>
+
+  <!-- 5. 新規入会内訳 -->
+  <section class="card" id="sec-5">
+    <h2><span class="icon">5</span> 新規入会内訳（月別）</h2>
+
+    <h3>表示項目</h3>
+    <ul>
+      <li>合計新規入会数</li>
+      <li>プラン別:
+        <ul>
+          <li>新規入会者数</li>
+          <li>新規入会売上（プラン別、税抜）= 新規入会者の初回決済額合計</li>
+          <li>現アクティブ会員数（参考）</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>広告経由 / Organic判別</h3>
+    <div class="callout">
+      <strong>⚠️ 未対応</strong><br>
+      Stripeにソース情報がないため、広告経由とOrganic経由の判別はできません。必要時は決済時の <code>metadata</code> 付与で対応可能です。
+    </div>
+  </section>
+
+  <!-- 6. 会員一覧 -->
+  <section class="card" id="sec-6">
+    <h2><span class="icon">6</span> 会員一覧</h2>
+
+    <h3>表示</h3>
+    <ul>
+      <li><strong>インボイスベース</strong>で月別スナップショット表示</li>
+      <li>プラン変更があっても各月の決済が正しく表示される</li>
+      <li>デフォルト10件折りたたみ表示、展開ボタンで全件表示</li>
+    </ul>
+
+    <h3>各会員の項目</h3>
+    <table>
+      <thead><tr><th>項目</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>顧客ID / 支払いID</td><td>Stripeの cus_xxx / ch_xxx</td></tr>
+        <tr><td>メールアドレス / 名前</td><td>Stripe Customer情報</td></tr>
+        <tr><td>決済金額</td><td>税込 (invoice.amount_paid)</td></tr>
+        <tr><td>返金額 / 返金理由</td><td>charge.amount_refunded / refund.reason</td></tr>
+        <tr><td>クーポン名 / 割引額</td><td>invoice.discounts</td></tr>
+        <tr><td>プラン名 / 決済日時</td><td>line item / charge.created</td></tr>
+        <tr><td>Stripe手数料 / 手数料消費税</td><td>balance_transaction.fee</td></tr>
+        <tr><td>ステータス</td><td>invoice.status</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 7. データエクスポート -->
+  <section class="card" id="sec-7">
+    <h2><span class="icon">7</span> データエクスポート</h2>
+
+    <h3>Excel ダウンロード（会員一覧）</h3>
+    <ul>
+      <li>期間フィルタ: 直近1ヶ月 / 3ヶ月 / 半年 / 1年 / 全期間</li>
+      <li>プラン別フィルタ</li>
+      <li>ダウンロード成功通知 + 自動クローズ</li>
+    </ul>
+
+    <h3>実績CSV出力</h3>
+    <ul>
+      <li>ヘッダーの「実績CSV出力」ボタン</li>
+      <li>期間指定可能 (<code>?from=2026-3&to=2026-12</code>)</li>
+      <li>月別×プラン別の新規入会数・売上・決済件数を出力</li>
+      <li>BOM付きでExcel/Sheets対応</li>
+    </ul>
+
+    <h3>Google Sheets API（オプション）</h3>
+    <p>サービスアカウント設定後に完全自動同期可能。現状はCSV出力で代替。</p>
+  </section>
+
+  <!-- 8. 予実管理 -->
+  <section class="card" id="sec-8">
+    <h2><span class="icon">8</span> 予実管理（予算機能）</h2>
+
+    <h3>予算データ</h3>
+    <ul>
+      <li>期間: <strong>2026年3月 〜 2027年2月</strong>（12ヶ月）</li>
+      <li>サービス実開始3月に合わせ後ろ倒し</li>
+      <li>売上目標 / 新規ユーザー目標 / プラン別内訳 / PL指標</li>
+    </ul>
+
+    <h3>例</h3>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="label">3月目標</div>
+        <div class="value">51人 / ¥1,822,000</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">4月目標</div>
+        <div class="value">58人 / ¥2,282,000</div>
+      </div>
+    </div>
+
+    <h3>予算 vs 実績</h3>
+    <ul>
+      <li>KPIカードで予算 / 実績 / 差分を表示</li>
+      <li>ダッシュボード上で手動上書き可能（PostgreSQL or ファイル保存）</li>
+    </ul>
+  </section>
+
+  <!-- 9. システム仕様 -->
+  <section class="card" id="sec-9">
+    <h2><span class="icon">9</span> システム仕様</h2>
+
+    <h3>データソース</h3>
+    <ul>
+      <li><strong>Stripe API</strong>（リアルタイム読込）</li>
+      <li>5分間キャッシュ (NodeCache)</li>
+    </ul>
+
+    <h3>手動更新</h3>
+    <ul>
+      <li>ヘッダーの「データ更新」ボタンでキャッシュクリア</li>
+      <li>API: <code>POST /api/dashboard/refresh</code></li>
+    </ul>
+
+    <h3>デプロイ</h3>
+    <ul>
+      <li>フロント: Render静的サイト</li>
+      <li>バックエンド: Render Web Service</li>
+      <li>URL: <a href="https://digirise-dashboard.onrender.com/" style="color:#4F46E5;">https://digirise-dashboard.onrender.com/</a></li>
+    </ul>
+
+    <h3>環境変数</h3>
+    <ul>
+      <li><code>STRIPE_SECRET_KEY</code> (rk_live_...)</li>
+      <li><code>DATABASE_URL</code> (PostgreSQL、予算上書き用、オプション)</li>
+      <li><code>CACHE_TTL_SECONDS</code> (デフォルト 300)</li>
+    </ul>
+  </section>
+
+  <!-- 10. 主要KPIサマリ -->
+  <section class="card" id="sec-10">
+    <h2><span class="icon">10</span> 主要KPIサマリ</h2>
+
+    <p>2026年4月時点の値（変動するためあくまで参考値）:</p>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="label">アクティブ会員</div>
+        <div class="value">122件</div>
+        <div class="desc">永続無料(11件)を除く</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">MRR</div>
+        <div class="value">¥1,017,238</div>
+        <div class="desc">割引後・税抜の実績ベース</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">月間売上(4月)</div>
+        <div class="value">¥3,356,550</div>
+        <div class="desc">AIスクールサブスクのみ・税抜</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">新規入会(4月)</div>
+        <div class="value">93名</div>
+        <div class="desc">永続無料除く</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">新規入会売上(4月)</div>
+        <div class="value">¥3,241,050</div>
+        <div class="desc">初回決済合計・税抜</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">累計売上</div>
+        <div class="value">¥4,272,141</div>
+        <div class="desc">サービス開始からの税抜合計</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">解約数(4月)</div>
+        <div class="value">1名</div>
+        <div class="desc">3.33% 解約率</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11. データ整合性 -->
+  <section class="card" id="sec-11">
+    <h2><span class="icon">11</span> データ整合性の保証</h2>
+
+    <h3>全ソースで統一済み</h3>
+    <ul>
+      <li>✅ Dashboard表示</li>
+      <li>✅ APIレスポンス</li>
+      <li>✅ CSV出力</li>
+    </ul>
+    <p>→ <strong>全て同じ計算ロジックから生成</strong>されているため、相互に矛盾しません。</p>
+
+    <h3>除外条件の自動化</h3>
+    <ul>
+      <li>永続無料の自動除外（クーポン判定）</li>
+      <li>イベント等の単発決済の自動除外（subscription紐付けチェック）</li>
+      <li>社内テストアカウント <code>s.ishimaru@digirise.ai</code> 等は永続無料扱いで自動除外</li>
+    </ul>
+
+    <h3>表記の徹底</h3>
+    <ul>
+      <li>売上カードに「(税抜)」明記</li>
+      <li>グラフタイトルに「(税抜)」明記</li>
+      <li>プラン別詳細に「(税抜・割引後実績)」明記</li>
+      <li>ARPU 5ヶ月後再導入の注記</li>
+    </ul>
+
+    <div class="callout success">
+      <strong>✅ Stripeを正とする設計</strong><br>
+      決済はすべてStripeで行われており、ダッシュボードはStripe APIから直接データを取得しています。Stripeで変更があれば即反映されます（5分キャッシュ）。
+    </div>
+  </section>
+
+  <footer>
+    デジライズAIスクール売上管理ダッシュボード — 機能要件 (2026-04 更新)
+  </footer>
+</main>
+</body>
+</html>
