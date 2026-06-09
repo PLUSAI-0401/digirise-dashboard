@@ -4,17 +4,156 @@ const { isPermanentlyFree, getPlanKey } = require('../utils/subscriptionFilters'
 
 // 集計方針：
 // - 有料契約しているユーザー（クーポン100%offで実質無料の方も含む）をカウント
-// - ただし「永続無料（100%off + duration=forever のクーポン）」は社内テスト/特別契約として除外
-// - 期間限定割引中(duration=once)の会員は今後課金されるため含める
+// - 「永続無料（100%off + duration=forever のクーポン）」は社内テスト/特別契約として除外
+// - 「累計支払¥0の顧客」もテストユーザーとして除外（初回決済失敗の incomplete_expired や
+//   期間限定無料中に解約した会員など、サービス利用料金が一度も発生していない顧客）
+// - 期間限定割引中(duration=once)で課金実績がある会員は含める
+//
+// 過去月の数値を確定値にするため、新規入会の集計は「subscription_create インボイス」ベース。
+// インボイスは解約しても消えないので、過去月のデータが時間経過で変動しません。
 
 function emptyPlanCounts() {
   return { '1month': 0, '3month': 0, '5month': 0, other: 0 };
 }
 
+/**
+ * 顧客ごとの累計支払額(税込)を集計して返す。
+ * AIスクールのサブスク決済のみ対象（イベント等の単発決済は除く）。
+ * 返金は控除済み。
+ * 「累計支払¥0」の顧客 = テストユーザー判定に使用。
+ */
+async function getCustomerPaidMap() {
+  const map = new Map();
+  for await (const ch of stripe.charges.list({
+    created: { gte: CUTOFF_TIMESTAMP },
+    limit: 100,
+    expand: ['data.invoice'],
+  })) {
+    if (ch.status !== 'succeeded') continue;
+    const inv = ch.invoice;
+    // AIスクールサブスク決済のみ
+    if (!inv || typeof inv !== 'object' || !inv.subscription) continue;
+    const custId = typeof ch.customer === 'string' ? ch.customer : ch.customer?.id;
+    if (!custId) continue;
+    const net = ch.amount - (ch.amount_refunded || 0);
+    map.set(custId, (map.get(custId) || 0) + net);
+  }
+  return map;
+}
+
+/**
+ * テストユーザーかどうかを判定（累計支払¥0なら true）。
+ * paidMap は getCustomerPaidMap() で事前に作成しておく。
+ */
+function isTestUserBySub(sub, paidMap) {
+  const custId = typeof sub.customer === 'object' && sub.customer ? sub.customer.id : sub.customer;
+  if (!custId) return true; // 顧客IDが取れない時点で除外
+  return (paidMap.get(custId) || 0) === 0;
+}
+
+function isTestUserByCustomerId(customerId, paidMap) {
+  if (!customerId) return true;
+  return (paidMap.get(customerId) || 0) === 0;
+}
+
+// インボイスのline itemからプラン種別を判定（subscriptionをexpand不要）
+function getPlanKeyFromInvoice(invoice) {
+  const lineItem = invoice.lines?.data?.[0];
+  const price = lineItem?.price;
+  if (!price?.recurring) return 'other';
+  const ic = price.recurring.interval_count || 1;
+  if (price.recurring.interval === 'month') {
+    if (ic === 1) return '1month';
+    if (ic === 3) return '3month';
+    if (ic === 5) return '5month';
+  } else if (price.recurring.interval === 'day') {
+    if (ic >= 28 && ic <= 31) return '1month';
+    if (ic >= 89 && ic <= 92) return '3month';
+    if (ic >= 148 && ic <= 152) return '5month';
+  }
+  return 'other';
+}
+
+/**
+ * 指定期間内に新規入会した会員の件数・プラン別売上を返す。
+ * subscription_create インボイス（status=paid）ベースで集計するため、
+ * 後から該当サブスクが解約されても、過去の数値は変動しません。
+ * paidMap を渡すと「累計支払¥0の顧客」を除外します。
+ */
+async function getNewMembersForPeriod(startTs, endTs, paidMap = null) {
+  let count = 0;
+  const byPlan = emptyPlanCounts();
+  const revenueByPlan = { '1month': 0, '3month': 0, '5month': 0, other: 0 };
+  const seenSubs = new Set();
+
+  for await (const invoice of stripe.invoices.list({
+    created: { gte: startTs, lte: endTs },
+    status: 'paid',
+    limit: 100,
+    expand: [
+      'data.subscription.discount.coupon',
+      'data.subscription.customer',
+      'data.lines.data.price',
+    ],
+  })) {
+    // 新規入会の初回インボイスのみ対象
+    if (invoice.billing_reason !== 'subscription_create') continue;
+    if (!invoice.subscription || typeof invoice.subscription !== 'object') continue;
+
+    const sub = invoice.subscription;
+    // 同一subが複数のsubscription_createインボイスを持つことは通常ないが、安全のため重複排除
+    if (seenSubs.has(sub.id)) continue;
+    seenSubs.add(sub.id);
+
+    // 永続無料は除外（社内テスト・特別契約）
+    if (isPermanentlyFree(sub)) continue;
+
+    // 累計支払¥0の顧客（テストユーザー）は除外
+    if (paidMap && isTestUserBySub(sub, paidMap)) continue;
+
+    const k = getPlanKeyFromInvoice(invoice);
+    count++;
+    byPlan[k]++;
+
+    // 初回決済額（割引後・税抜の実績）
+    const taxExcl = invoice.total_excluding_tax ?? Math.round((invoice.amount_paid || 0) / 1.1);
+    revenueByPlan[k] += taxExcl;
+  }
+
+  return { count, byPlan, revenueByPlan };
+}
+
+/**
+ * 指定期間内に解約された会員の件数を返す（canceled_at基準で確定値）。
+ * paidMap を渡すと「累計支払¥0の顧客」を除外します。
+ */
+async function getChurnedForPeriod(startTs, endTs, paidMap = null) {
+  let count = 0;
+  const byPlan = emptyPlanCounts();
+  for await (const sub of stripe.subscriptions.list({
+    status: 'canceled',
+    created: { gte: CUTOFF_TIMESTAMP },
+    limit: 100,
+    expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price'],
+  })) {
+    if (!sub.canceled_at) continue;
+    if (sub.canceled_at < startTs || sub.canceled_at > endTs) continue;
+    if (isPermanentlyFree(sub)) continue;
+    // 累計支払¥0の顧客（テストユーザー）は除外
+    if (paidMap && isTestUserBySub(sub, paidMap)) continue;
+    count++;
+    byPlan[getPlanKey(sub)]++;
+  }
+  return { count, byPlan };
+}
+
 async function getMemberMetrics(year, month) {
   const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
-  // アクティブサブスク件数（永続無料を除外）+ プラン別内訳
+  // 顧客ごとの累計支払額マップを作成（テストユーザー判定用、最初に1回だけ）
+  const paidMap = await getCustomerPaidMap();
+
+  // アクティブサブスク件数（リアルタイム値、永続無料 + 累計支払¥0顧客 を除外）+ プラン別内訳
   let totalActiveMembers = 0;
   const activeByPlan = emptyPlanCounts();
   for (const status of ['active', 'trialing']) {
@@ -25,49 +164,22 @@ async function getMemberMetrics(year, month) {
       expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price'],
     })) {
       if (isPermanentlyFree(sub)) continue;
+      if (isTestUserBySub(sub, paidMap)) continue;
       totalActiveMembers++;
       activeByPlan[getPlanKey(sub)]++;
     }
   }
 
-  // 今月作成されたサブスク件数（新規入会、永続無料は除外）+ プラン別内訳 + 新規売上
-  // 新規入会売上 = 今月新規作成されたサブスクの latest_invoice.total_excluding_tax 合計（プラン別）
-  let newMembersThisMonth = 0;
-  const newByPlan = emptyPlanCounts();
-  const newRevenueByPlan = { '1month': 0, '3month': 0, '5month': 0, other: 0 };
-  for await (const sub of stripe.subscriptions.list({
-    created: { gte: startTimestamp, lte: endTimestamp },
-    limit: 100,
-    expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price', 'data.latest_invoice'],
-  })) {
-    if (isPermanentlyFree(sub)) continue;
-    newMembersThisMonth++;
-    const k = getPlanKey(sub);
-    newByPlan[k]++;
+  // 新規入会数・売上（インボイスベースの確定値、テストユーザー除外）
+  const newInfo = await getNewMembersForPeriod(startTimestamp, endTimestamp, paidMap);
+  const newMembersThisMonth = newInfo.count;
+  const newByPlan = newInfo.byPlan;
+  const newRevenueByPlan = newInfo.revenueByPlan;
 
-    // 新規入会者の初回支払額（税抜）を集計
-    const inv = sub.latest_invoice;
-    if (inv && typeof inv === 'object' && inv.amount_paid > 0) {
-      const taxExcl = inv.total_excluding_tax ?? Math.round(inv.amount_paid / 1.1);
-      newRevenueByPlan[k] += taxExcl;
-    }
-  }
-
-  // 今月キャンセルされたサブスク件数（解約、永続無料は除外）+ プラン別内訳
-  let churnedMembersThisMonth = 0;
-  const churnedByPlan = emptyPlanCounts();
-  for await (const sub of stripe.subscriptions.list({
-    status: 'canceled',
-    created: { gte: CUTOFF_TIMESTAMP },
-    limit: 100,
-    expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price'],
-  })) {
-    if (sub.canceled_at && sub.canceled_at >= startTimestamp && sub.canceled_at <= endTimestamp) {
-      if (isPermanentlyFree(sub)) continue;
-      churnedMembersThisMonth++;
-      churnedByPlan[getPlanKey(sub)]++;
-    }
-  }
+  // 解約数（canceled_at基準の確定値、テストユーザー除外）
+  const churnInfo = await getChurnedForPeriod(startTimestamp, endTimestamp, paidMap);
+  const churnedMembersThisMonth = churnInfo.count;
+  const churnedByPlan = churnInfo.byPlan;
 
   // 解約率
   const activeAtStartOfMonth = totalActiveMembers + churnedMembersThisMonth - newMembersThisMonth;
@@ -75,8 +187,8 @@ async function getMemberMetrics(year, month) {
     ? parseFloat(((churnedMembersThisMonth / activeAtStartOfMonth) * 100).toFixed(2))
     : 0;
 
-  // 過去6ヶ月の会員推移
-  const memberHistory = await getMemberHistory(6);
+  // 過去6ヶ月の会員推移（同じpaidMapを使い回す）
+  const memberHistory = await getMemberHistory(6, paidMap);
 
   return {
     totalActiveMembers,
@@ -92,9 +204,12 @@ async function getMemberMetrics(year, month) {
   };
 }
 
-async function getMemberHistory(months = 6) {
+async function getMemberHistory(months = 6, paidMap = null) {
   const now = new Date();
   const history = [];
+
+  // paidMap が未指定なら作成
+  if (!paidMap) paidMap = await getCustomerPaidMap();
 
   for (let i = months - 1; i >= 0; i--) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -102,38 +217,17 @@ async function getMemberHistory(months = 6) {
     const month = date.getMonth() + 1;
     const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
-    let newCount = 0;
-    const newByPlan = emptyPlanCounts();
-    for await (const sub of stripe.subscriptions.list({
-      created: { gte: startTimestamp, lte: endTimestamp },
-      limit: 100,
-      expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price'],
-    })) {
-      if (isPermanentlyFree(sub)) continue;
-      newCount++;
-      newByPlan[getPlanKey(sub)]++;
-    }
-
-    let churnedCount = 0;
-    for await (const sub of stripe.subscriptions.list({
-      status: 'canceled',
-      created: { gte: CUTOFF_TIMESTAMP },
-      limit: 100,
-      expand: ['data.discount.coupon', 'data.customer'],
-    })) {
-      if (sub.canceled_at && sub.canceled_at >= startTimestamp && sub.canceled_at <= endTimestamp) {
-        if (isPermanentlyFree(sub)) continue;
-        churnedCount++;
-      }
-    }
+    // 新規入会・解約（共に確定値、テストユーザー除外）
+    const newInfo = await getNewMembersForPeriod(startTimestamp, endTimestamp, paidMap);
+    const churnInfo = await getChurnedForPeriod(startTimestamp, endTimestamp, paidMap);
 
     history.push({
       year,
       month,
       label: `${month}月`,
-      newMembers: newCount,
-      newByPlan,
-      churned: churnedCount,
+      newMembers: newInfo.count,
+      newByPlan: newInfo.byPlan,
+      churned: churnInfo.count,
     });
   }
 
@@ -283,7 +377,10 @@ async function getWeeklyMemberHistory(weeks = 4) {
   const now = new Date();
   const history = [];
 
-  // 現時点のアクティブサブスク件数（永続無料を除外）
+  // 顧客ごとの累計支払額マップを作成
+  const paidMap = await getCustomerPaidMap();
+
+  // 現時点のアクティブサブスク件数（永続無料 + テストユーザー除外）
   let currentTotal = 0;
   for (const status of ['active', 'trialing']) {
     for await (const sub of stripe.subscriptions.list({
@@ -293,6 +390,7 @@ async function getWeeklyMemberHistory(weeks = 4) {
       expand: ['data.discount.coupon', 'data.customer'],
     })) {
       if (isPermanentlyFree(sub)) continue;
+      if (isTestUserBySub(sub, paidMap)) continue;
       currentTotal++;
     }
   }
@@ -309,28 +407,11 @@ async function getWeeklyMemberHistory(weeks = 4) {
     const startTs = Math.max(Math.floor(weekStart.getTime() / 1000), CUTOFF_TIMESTAMP);
     const endTs = Math.floor(weekEnd.getTime() / 1000);
 
-    let newCount = 0;
-    for await (const sub of stripe.subscriptions.list({
-      created: { gte: startTs, lte: endTs },
-      limit: 100,
-      expand: ['data.discount.coupon', 'data.customer'],
-    })) {
-      if (isPermanentlyFree(sub)) continue;
-      newCount++;
-    }
-
-    let churnedCount = 0;
-    for await (const sub of stripe.subscriptions.list({
-      status: 'canceled',
-      created: { gte: CUTOFF_TIMESTAMP },
-      limit: 100,
-      expand: ['data.discount.coupon', 'data.customer'],
-    })) {
-      if (sub.canceled_at && sub.canceled_at >= startTs && sub.canceled_at <= endTs) {
-        if (isPermanentlyFree(sub)) continue;
-        churnedCount++;
-      }
-    }
+    // 新規入会・解約（共に確定値、テストユーザー除外）
+    const newInfo = await getNewMembersForPeriod(startTs, endTs, paidMap);
+    const churnInfo = await getChurnedForPeriod(startTs, endTs, paidMap);
+    const newCount = newInfo.count;
+    const churnedCount = churnInfo.count;
 
     const sm = weekStart.getMonth() + 1;
     const sd = weekStart.getDate();
@@ -353,4 +434,13 @@ async function getWeeklyMemberHistory(weeks = 4) {
   return history;
 }
 
-module.exports = { getMemberMetrics, getMemberList, getWeeklyMemberHistory };
+module.exports = {
+  getMemberMetrics,
+  getMemberList,
+  getWeeklyMemberHistory,
+  getNewMembersForPeriod,
+  getChurnedForPeriod,
+  getCustomerPaidMap,
+  isTestUserBySub,
+  isTestUserByCustomerId,
+};

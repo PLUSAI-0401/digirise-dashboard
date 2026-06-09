@@ -1,8 +1,12 @@
 const stripe = require('../config/stripe');
 const { CUTOFF_TIMESTAMP } = require('../utils/dateUtils');
 const { isPermanentlyFree } = require('../utils/subscriptionFilters');
+const { getCustomerPaidMap, isTestUserBySub } = require('./memberService');
 
 async function getPlanBreakdown() {
+  // 顧客ごとの累計支払額マップ（テストユーザー判定用）
+  const paidMap = await getCustomerPaidMap();
+
   // Get all active recurring prices with product info
   const prices = [];
   for await (const price of stripe.prices.list({
@@ -17,7 +21,7 @@ async function getPlanBreakdown() {
   const planData = [];
 
   for (const price of prices) {
-    // 永続無料を除外したアクティブサブスク件数 + 月次実績売上を集計
+    // 永続無料 + テストユーザー(累計支払¥0) を除外したアクティブサブスク件数 + 月次実績売上
     let subscriberCount = 0;
     let actualMonthlyRevenue = 0;
     const DAYS_PER_MONTH = 365.25 / 12;
@@ -30,6 +34,7 @@ async function getPlanBreakdown() {
       expand: ['data.discount.coupon', 'data.customer', 'data.latest_invoice'],
     })) {
       if (isPermanentlyFree(sub)) continue;
+      if (isTestUserBySub(sub, paidMap)) continue;
       subscriberCount++;
 
       // 各サブスクの実績ベース月次売上（割引後・税抜）

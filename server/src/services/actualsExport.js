@@ -1,9 +1,11 @@
 // 実績データを月別×KPIで構造化する。
 // CSV出力 / Google Sheets書き込みの共通データソースとして使う。
+// 新規入会の集計はインボイスベース(subscription_create)で確定値を返す。
 
 const { getMonthRange } = require('../utils/dateUtils');
 const stripe = require('../config/stripe');
 const { isPermanentlyFree, getPlanKey } = require('../utils/subscriptionFilters');
+const { getNewMembersForPeriod, getCustomerPaidMap } = require('./memberService');
 
 const TAX_DIVISOR = 1.1;
 const DAYS_PER_MONTH = 365.25 / 12;
@@ -21,19 +23,17 @@ function emptyPlanCounts() {
 async function getMonthActuals(year, month) {
   const { startTimestamp, endTimestamp } = getMonthRange(year, month);
 
-  // 新規入会（プラン別、永続無料除外）
-  const newByPlan = emptyPlanCounts();
-  let newTotal = 0;
-  for await (const sub of stripe.subscriptions.list({
-    created: { gte: startTimestamp, lte: endTimestamp },
-    limit: 100,
-    expand: ['data.discount.coupon', 'data.customer', 'data.items.data.price'],
-  })) {
-    if (isPermanentlyFree(sub)) continue;
-    newTotal++;
-    const k = getPlanKey(sub);
-    if (newByPlan[k] !== undefined) newByPlan[k]++;
-  }
+  // テストユーザー判定用の累計支払額マップ
+  const paidMap = await getCustomerPaidMap();
+
+  // 新規入会（インボイスベースの確定値、永続無料 + テストユーザー除外）
+  const newInfo = await getNewMembersForPeriod(startTimestamp, endTimestamp, paidMap);
+  const newTotal = newInfo.count;
+  const newByPlan = {
+    '1month': newInfo.byPlan['1month'] || 0,
+    '3month': newInfo.byPlan['3month'] || 0,
+    '5month': newInfo.byPlan['5month'] || 0,
+  };
 
   // 売上合計（AIスクールのサブスク決済のみ、イベント等の単発決済を除外）
   let totalChargeIncTax = 0;

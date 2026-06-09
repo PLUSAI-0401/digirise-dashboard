@@ -1,6 +1,7 @@
 const stripe = require('../config/stripe');
 const { getMonthRange, getPreviousMonth, CUTOFF_TIMESTAMP } = require('../utils/dateUtils');
 const { isPermanentlyFree } = require('../utils/subscriptionFilters');
+const { getCustomerPaidMap, isTestUserBySub } = require('./memberService');
 
 // 日本の消費税率（10%）。Stripeのcharge.amountは税込のため、税抜換算に使用
 const TAX_RATE = 0.10;
@@ -44,6 +45,9 @@ const DAYS_PER_MONTH = 365.25 / 12;
 async function calculateMRR() {
   let totalMRR = 0;
 
+  // 顧客ごとの累計支払額マップ（テストユーザー判定用）
+  const paidMap = await getCustomerPaidMap();
+
   for (const status of ['active', 'trialing']) {
     for await (const sub of stripe.subscriptions.list({
       status,
@@ -53,6 +57,8 @@ async function calculateMRR() {
     })) {
       // 永続無料は除外
       if (isPermanentlyFree(sub)) continue;
+      // 累計支払¥0のテストユーザーは除外
+      if (isTestUserBySub(sub, paidMap)) continue;
 
       const invoice = sub.latest_invoice;
       if (!invoice || typeof invoice !== 'object') continue;
